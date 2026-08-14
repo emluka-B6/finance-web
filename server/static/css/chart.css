@@ -1,0 +1,25 @@
+#stockChart {
+    width: 100% !important;
+    height: 400px !important;
+}
+
+#fav-icon {
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+#fav-icon.active {
+  transform: scale(1.3);
+  color: gold;
+}
+
+.button-divider {
+    width: 100%;
+    border: 1.5px solid #007bff;
+    opacity: 1;
+    border-radius: 2px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+.interval-button {
+  font-size: 0.8rem; /* To make 30M fit inside the button */
+}

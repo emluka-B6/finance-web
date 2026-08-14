@@ -1,0 +1,46 @@
+<!-- templates/register.html -->
+{% extends "base.html" %}
+
+{% block title %}Register{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="text-center mb-4">Register</h1>
+
+    <!-- Flash messages -->
+    <div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="alert alert-dismissible fade show" role="alert">
+                    {% for category, message in messages %}
+                        {{ message }}
+                    {% endfor %}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Registration Form -->
+    <form method="POST" action="{{ url_for('user.register') }}" class="row g-3 needs-validation" novalidate>
+        <div class="col-12">
+            <label for="name" class="form-label">Name:</label>
+            <input type="text" class="form-control" id="name" name="name" required>
+            <div class="invalid-feedback">Name is required.</div>
+        </div>
+        <div class="col-12">
+            <label for="email" class="form-label">Email:</label>
+            <input type="email" class="form-control" id="email" name="email" required>
+            <div class="invalid-feedback">Email is required.</div>
+        </div>
+        <div class="col-12">
+            <label for="password" class="form-label">Password:</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+            <div class="invalid-feedback">Password is required.</div>
+        </div>
+        <div class="col-12 text-center">
+            <button type="submit" class="btn btn-success mt-3">Register</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

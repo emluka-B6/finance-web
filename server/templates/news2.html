@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}News2{% endblock %}
+{% block content %}
+
+<div class="container mt-4">
+    <div class="row">
+      <!-- LEFT COLUMN: News -->
+      <div class="col-md-8">
+        <div class="news-section card mb-4">
+          <h4 class="mx-3 mt-3">General Market News</h4>
+          <ul class="card-body list-unstyled">
+            {% for item in general_news %}
+              <li class="news-item mb-2">
+                <a href="{{ item.link }}" target="_blank" class="news-link">
+                  {{ item.title }}
+                </a><br>
+                <small class="news-date">{{ item.published | format_datetime }}</small>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+  
+        {% for ticker, news_list in company_news.items() %}
+          <div class="news-section card mb-4">
+            <h4 class="mx-3 mt-3">{{ ticker }} News</h4>
+            <ul class="card-body list-unstyled">
+              {% for item in news_list %}
+                <li class="news-item mb-2">
+                  <a href="{{ item.link }}" target="_blank" class="news-link">
+                    {{ item.title }}
+                  </a><br>
+                  <small class="news-date">{{ item.published | format_datetime }}</small>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endfor %}
+      </div>
+  
+      <!-- RIGHT COLUMN: Favorites Table -->
+      <div class="col-md-4">
+        <div class="sticky-wrapper">
+          <div class="card mb-4">
+            <h4 class="mx-3 mt-3">Favorites</h4>
+            <div class="card-body p-0">
+              <table class="table table-striped mb-0 text-center align-middle" id="favorites-table">
+                <thead class="table-light">
+                  <tr>
+                    <th>Name</th>
+                    <th>Price</th>
+                    <th>Change</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody id="favorites-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script src="{{ url_for('static', filename='js/news.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/news2.css')}}">
+{% endblock %}  

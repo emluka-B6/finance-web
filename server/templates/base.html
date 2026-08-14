@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}User Management{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 70px; /* Keep this for fixed navbar */
+        }
+    
+        /* Remove triangle */
+        .navbar .nav-item.dropdown .dropdown-toggle::after {
+            display: none;
+        }
+    
+        /* 
+         * Same background as nav bar is used. Otherwise the parents to nav should have 
+         * position: static. Even then special JS handling for hover is required. The dropdown
+         * is not hidden when mouse is over navbar.  
+         */
+        .dropdown-menu {
+            background-color: #212529;
+            min-width: 100%;
+            border: none;
+            /* box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15); */
+            /* box-shadow: 12px 12px 2px 1px rgba(0, 0, 255, 0.2); */
+            border-radius: 0 !important;
+        }
+
+        /* Hover state */
+        .nav-item.dropdown:hover .dropdown-menu {
+            display: block !important;
+        }
+    
+        /* hmmm, without it text is not visible */
+        .dropdown-item {
+            color: rgba(255, 255, 255, 0.75);
+        }
+
+        /* No special background for last selected menu item */
+        .dropdown-menu .dropdown-item:active,
+        .dropdown-menu .dropdown-item.active {
+            background-color: inherit;
+        }
+
+        /* .dropdown-item:focus, */
+        .dropdown-item:hover {
+            background-color: #007bff !important;
+            color: white !important;
+        }
+
+        .dropdown-divider {
+            background-color: rgba(255, 255, 255, 0.8); /* same tone as inactive text */
+            height: 1px;
+            border: none;
+            width: 80%;
+            margin: 0.2rem auto;     /* center horizontally */
+        }
+    </style>    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/search.css')}}">
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const dropdowns = document.querySelectorAll('.nav-item.dropdown');
+            
+            dropdowns.forEach(dropdown => {
+                const menu = dropdown.querySelector('.dropdown-menu');
+                let hoverTimeout;
+                /*
+                // Show menu on parent hover
+                dropdown.addEventListener('mouseenter', () => {
+                    clearTimeout(hoverTimeout);
+                    menu.style.display = 'block';
+                });
+
+                // Hide menu with delay when leaving parent OR menu
+                [dropdown, menu].forEach(element => {
+                    element.addEventListener('mouseleave', () => {
+                        hoverTimeout = setTimeout(() => {
+                            if (!dropdown.matches(':hover') && !menu.matches(':hover')) {
+                                menu.style.display = 'none';
+                            }
+                        }, 100); // 100ms delay
+                    });
+
+                    element.addEventListener('mouseenter', () => {
+                        clearTimeout(hoverTimeout);
+                    });
+                });*/
+            });
+        });
+</script>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">                
+                <img width=28 height=28 src="{{ url_for('static', filename='icons/financial-profit.png') }}">
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+
+                    <!-- Admin-only Settings Dropdown -->
+                    {% if current_user.is_authenticated and current_user.is_admin() %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="settingsDropdown" role="button"  aria-expanded="false">
+                                Settings
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="settingsDropdown">
+                                <li>
+                                    <a class="dropdown-item {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('user.index') }}">
+                                        All Users
+                                    </a>
+                                </li>
+                                <!-- <li><hr class="dropdown-divider"></li> Add a separator -->
+                                <li>
+                                    <a class="dropdown-item {% if request.endpoint == 'add_user' %}active{% endif %}" href="{{ url_for('user.add_user') }}">
+                                        New User
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                    {% endif %}
+
+                    <!-- Add ness links -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="tablesDropdown" role="button" aria-expanded="false">
+                            News
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="tablesDropdown">
+                            <li>
+                                <a class="dropdown-item {% if request.endpoint == 'news.news' %}active{% endif %}" href="{{ url_for('news.news') }}">
+                                    Global
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.endpoint == 'news.news2' %}active{% endif %}" href="{{ url_for('news.news2') }}">
+                                    Global2
+                                </a>
+                            </li>                         
+                        </ul>
+                    </li>
+
+                    <!-- Add stock index links -->
+                    <li class="nav-item dropdown">                    
+                        <a class="nav-link dropdown-toggle" href="#" id="tablesDropdown" role="button" aria-expanded="false">
+                            Poland
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="tablesDropdown">
+                            <li>
+                                <a class="dropdown-item {% if request.endpoint == 'table.wig20' %}active{% endif %}" href="{{ url_for('table.wig20') }}">
+                                    Summary
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'CDR.WA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='CDR.WA') }}">
+                                    CD Project
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'PKN.WA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='PKN.WA') }}">
+                                    PKN Orlen
+                                </a>
+                            </li>                            
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'PKO.WA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='PKO.WA') }}">
+                                    Bank PKO BP
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'PZU.WA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='PZU.WA') }}">
+                                    PZU
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'MBK.WA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='MBK.WA') }}">
+                                    mBank
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'PEO.WA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='PEO.WA') }}">
+                                    Bank Pekao
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'KGH.WA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='KGH.WA') }}">
+                                    KGHM Polska
+                                </a>
+                            </li>                            
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'LPP.WA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='LPP.WA') }}">
+                                    LPP
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'PGE.WA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='PGE.WA') }}">
+                                    PGE
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'DNP.WA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='DNP.WA') }}">
+                                    Dino
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'ALR.WA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='ALR.WA') }}">
+                                    Alior Bank
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'ALE.WA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='ALE.WA') }}">
+                                    Allegro
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'KTY.WA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='KTY.WA') }}">
+                                    Kęty
+                                </a>
+                            </li>                                                        
+                            <!-- 'KRU.WA', 'PCO.WA', 'OPL.WA', 'BDX.WA'] -->
+                        </ul>
+                    </li>
+
+                    <!-- Add chart links -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="chartsDropdown" role="button" aria-expanded="false">
+                            Usa
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="chartsDropdown">
+                            <li>
+                                <a class="dropdown-item {% if request.endpoint == 'table.mag7' %}active{% endif %}" href="{{ url_for('table.mag7') }}">
+                                    Summary
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'GOOGL' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='GOOGL') }}">
+                                    Google
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'TSLA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='TSLA') }}">
+                                    Tesla
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'META' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='META') }}">
+                                    Meta
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'NVDA' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='NVDA') }}">
+                                    Nvidia
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'AMZN' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='AMZN') }}">
+                                    Amazon
+                                </a>
+                            </li>                                                                                                                                            
+                            <li>
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'MSFT' %}active{% endif %}"
+                                    href="{{ url_for('chart.chart', symbol='MSFT') }}">
+                                    Microsoft
+                                </a>
+                            </li>
+                            <li>                                
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'AAPL' %}active{% endif %}" 
+                                    href="{{ url_for('chart.chart', symbol='AAPL') }}">
+                                    Apple
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Favorites Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="favoritesDropdown" role="button" aria-expanded="false">
+                            Favorites
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="favoritesDropdown" id="favorites-list">
+                            {% for fav in session.get('favorites', []) %}
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('chart.chart', symbol=fav.symbol) }}">{{ fav.name }}</a>
+                            </li>
+                            {% else %}
+                            <li><span class="dropdown-item text-muted">No favorites</span></li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="favoritesDropdown" role="button" aria-expanded="false">
+                            Stats
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="chartsDropdown">
+                            <li>
+                                <a class="dropdown-item {% if request.endpoint == 'stats.activity' %}active{% endif %}" 
+                                    href="{{ url_for('stats.activity') }}">
+                                    Activity
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+
+                </ul>
+            </div>
+              
+            <!-- Right-aligned Logout button -->
+            <div class="d-flex">
+                <!-- Live Search Bar -->
+                <form class="position-relative" id="ticker-search-form" onsubmit="return false;">
+                    <input id="ticker-search" class="form-control me-2" type="search" placeholder="Search company..." aria-label="Search">
+                    <ul class="search-list list-group position-absolute w-100" id="search-results""></ul>
+                </form>
+                
+                {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('user.logout') }}" class="btn btn-danger ms-3">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('user.login') }}" class="btn btn-primary ms-3">Login</a>
+                    <a href="{{ url_for('user.register') }}" class="btn btn-success ms-3">Register</a>            
+                {% endif %}
+            </div>  
+        </div>
+    </nav>
+
+    <!-- Content Area -->
+    <div class="container mt-4">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Include Bootstrap JS and Popper.js -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>    
+    <script src="{{ url_for('static', filename='js/search.js') }}"></script>
+</body>
+</html>

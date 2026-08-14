@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}News{% endblock %}
+{% block content %}
+<div class="container mt-4">
+
+    <!-- General Market News -->
+    <div class="card mb-4 col-md-8 mx-auto">
+        <div class="card-header mx-3 mt-3 section-title">
+            <h4>General Market News</h4>
+        </div>
+        <div class="card-body">
+            <ul class="list-group list-group-flush">
+            {% for item in general_news %}
+                <li class="list-group-item">
+                    <a href="#" class="news-link fw-bold d-block">{{item.title}}</a>
+                    <small class="text-muted">
+                        {{ item.published | format_datetime }}
+                    </small>
+                </li>
+            {% endfor %}
+            </ul>
+        </div>
+    </div>
+ 
+    <!-- Company News -->
+    {% for ticker, news_list in company_news.items() %}
+      <div class="card mb-4 col-md-8 mx-auto">
+        <div class="card-header mx-3 mt-3 section-title">
+            <h5>{{ ticker }} News</h5>
+        </div>
+        <div class="card-body">
+          <ul class="list-group list-group-flush">
+            {% for item in news_list %}
+              <li class="list-group-item">
+                <a href="{{ item.link }}" target="_blank" class="news-link fw-bold d-block">
+                    {{ item.title }}
+                </a>
+                <small class="text-muted">
+                    {{ item.published | format_datetime }}
+                </small>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  
+  <style>
+    .section-title {
+        color: #212529;
+        font-weight: bold;
+        /*padding: 0.5rem 1rem;*/
+        border-radius: 8px;
+    }
+    a.news-link {
+        text-decoration: none;
+        color: #007bff;
+        transition: color 0.2s;
+      }
+    a.news-link:hover {
+        color: #0056b3;
+    }
+    .card {
+        border-width: 2px;
+        border-radius: 20px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+  </style>
+      
+{% endblock %}

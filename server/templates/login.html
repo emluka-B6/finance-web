@@ -1,0 +1,46 @@
+<!-- templates/login.html -->
+{% extends "base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="text-center mb-4">Login</h1>
+
+    <!-- Flash messages -->
+    <div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="alert alert-dismissible fade show" role="alert">
+                    {% for category, message in messages %}
+                        {{ message }}
+                    {% endfor %}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Login Form -->
+    <form method="POST" action="{{ url_for('user.login') }}" class="row g-3 needs-validation" novalidate>
+        <div class="col-12">
+            <label for="email" class="form-label">Email:</label>
+            <input type="email" class="form-control" id="email" name="email" required>
+            <div class="invalid-feedback">Email is required.</div>
+        </div>
+        <div class="col-12">
+            <label for="password" class="form-label">Password:</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+            <div class="invalid-feedback">Password is required.</div>
+        </div>
+        <div class="col-12 text-center">
+            <button type="submit" class="btn btn-primary mt-3">Login</button>
+        </div>
+    </form>
+
+    <!-- Registration Link -->
+    <p class="text-center mt-3">
+        New user? <a href="{{ url_for('user.register') }}" class="text-decoration-none">Register here</a>
+    </p>
+</div>
+{% endblock %}

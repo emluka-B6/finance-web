@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Stocks table{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="text-center mb-4">{{ table_title }}</h1>
+    <p class="text-center text-muted">Data as of {{ data_date }}</p>
+    
+    <!-- Display stock data in a table -->
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Company</th>
+                <th>Current Price</th>
+                <th>Change</th>
+                <th>Percent Change</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ticker, details in stock_data.items() %}
+                <tr>
+                    <td>{{ details.name }}</td>
+                    <td>{{ details.current_price | round(2) }} PLN</td>
+                    <td>
+                        {% if details.change >= 0 %}
+                            <span style="color: green;">{{ details.change | round(2) }} PLN</span>
+                        {% else %}
+                            <span style="color: red;">{{ details.change | round(2) }} PLN</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if details.percent_change >= 0 %}
+                            <span style="color: green;">{{ details.percent_change | round(2) }}%</span>
+                        {% else %}
+                            <span style="color: red;">{{ details.percent_change | round(2) }}%</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,124 @@
+from flask import Flask, request
+from flask_migrate import Migrate
+from flask_session import Session
+import os
+
+# python3 -m qwen.app, this needs __init__.py
+from misc.extensions import db
+# python3 qwen/app.py
+
+# import sys
+
+# current_dir = os.path.dirname(os.path.abspath(__file__))
+# main_dir = os.path.dirname(current_dir)
+# misc_dir = os.path.join(main_dir, 'misc')
+# sys.path.insert(0, misc_dir)
+# from extensions import db
+
+from news import dashboard_bp
+from favs import fav_bp
+from chart import chart_bp
+from table import table_bp
+from session import stats_bp, log_activity, clean_old_logs
+from user import user_bp, login_manager
+
+# FLASK_ENV=production REDIS_URL=redis://localhost:6379/0 python app.py
+# FLASK_ENV=development python app.py
+session = Session()
+
+def create_app(config=None):
+    app = Flask(__name__)
+
+    # Default config
+    # app.config.from_pyfile("config.py")
+
+    # Test config override
+    if config:
+        app.config.update(config)
+        
+    # Init extensions
+    db.init_app(app)
+
+    # initialize Flask-Session ONLY if needed
+    # if app.config.get("SESSION_TYPE") == "sqlalchemy":
+        # session.init_app(app)
+
+    # session.init_app(app)
+        
+    session_type = app.config.get("SESSION_TYPE")
+    if session_type in ("sqlalchemy", "filesystem", "cachelib", "redis", "memcached", "mongodb"):
+        session.init_app(app)
+
+    app.register_blueprint(dashboard_bp)
+    app.register_blueprint(fav_bp)
+    app.register_blueprint(chart_bp)
+    app.register_blueprint(table_bp)
+    app.register_blueprint(user_bp)
+    app.register_blueprint(stats_bp)
+
+    login_manager.init_app(app)
+
+    return app
+
+
+# app = Flask(__name__)
+
+app_config = dict() 
+app_config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sqlite_alchemy.db' #Main DB
+
+# --- Flask-Session configuration ---
+app_config['SESSION_PROTECTION'] = 'strong'
+app_config['SECRET_KEY'] = os.environ.get("SECRET_KEY", "dev_secret_key") # flash(), session
+app_config["SESSION_PERMANENT"] = False         # optional, session clears when browser closes
+app_config["SESSION_USE_SIGNER"] = True         # add extra signing for security
+# app_config["SESSION_PERMANENT"] = True
+# app_config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
+
+# --- Separate session database ---
+ENV = os.environ.get("FLASK_ENV", "development")
+if ENV == "production" and os.environ.get("REDIS_URL"):
+    app_config["SESSION_TYPE"] = "redis"
+    app_config["SESSION_REDIS"] = os.environ["REDIS_URL"]
+elif ENV == "development":
+    app_config["SESSION_TYPE"] = "sqlalchemy"
+    app_config['SESSION_SQLALCHEMY'] = db
+    app_config['SQLALCHEMY_BINDS'] = {'sessions': f'sqlite:///session_data.db'}
+    app_config['SESSION_SQLALCHEMY_TABLE'] = 'flask_sessions'
+else:
+    app_config["SESSION_TYPE"] = "filesystem"
+    app_config["SESSION_FILE_DIR"] = os.path.join(app.root_path, "flask_session")
+    app_config["SESSION_FILE_THRESHOLD"] = 500      # max number of session files to store
+    print("Session files stored in:", app_config["SESSION_FILE_DIR"])
+
+app = create_app(app_config)
+
+migrate = Migrate(app, db)  # Initialize Flask-Migrate with app and db
+
+# pip install apscheduler
+# from apscheduler.schedulers.background import BackgroundScheduler
+# scheduler = BackgroundScheduler()
+# scheduler.add_job(func=cleanup_old_logs, trigger='interval', days=1)
+# scheduler.start()
+
+@app.before_request
+def log_user_activity():
+    # Skip logging for static files or the logging route itself
+    if request.endpoint in ('static', 'stats.activity', 'favs.toggle_favorite', 
+                            'favs.favorite_data', 'favicon'):
+        return
+    log_activity(request.path, request.method)
+
+
+print(f'Session type: {app_config["SESSION_TYPE"]}, env {ENV}')
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()  # creates models in main_app.db
+
+        # only prepare sessions DB if SQLAlchemy backend is enabled
+        if app.config.get("SESSION_TYPE") == "sqlalchemy":
+            session_engine = db.engines['sessions']
+            db.metadata.create_all(bind=session_engine)
+            clean_old_logs(30)
+
+    app.run(debug=True)

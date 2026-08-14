@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Stats{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <h2 class="text-center mb-4">Activity Analytics (Last 30 Days)</h2>
+
+  <!-- Bar Chart -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <canvas id="activityChart" height="100"></canvas>
+    </div>
+  </div>
+
+  <!-- Tables -->
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white">Top Routes Overall</div>
+        <div class="card-body p-0">
+          <table class="table table-striped mb-0 text-center align-middle">
+            <thead class="table-light">
+              <tr><th>Route</th><th>Views</th></tr>
+            </thead>
+            <tbody>
+              {% for route, count in top_routes_overall %}
+              <tr>
+                <td>{{ route }}</td>
+                <td>{{ count }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header bg-success text-white">Top Routes (You)</div>
+        <div class="card-body p-0">
+          <table class="table table-striped mb-0 text-center align-middle">
+            <thead class="table-light">
+              <tr><th>Route</th><th>Views</th></tr>
+            </thead>
+            <tbody>
+              {% for route, count in top_routes_user %}
+              <tr>
+                <td>{{ route }}</td>
+                <td>{{ count }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{# Option1: with plugin Better Jinja #}
+<script>
+    const hours = {{ hours | tojson }};
+    const counts = {{ counts | tojson }};
+</script> 
+{# Option2:not recommended because of even possible XSS #}
+<!-- <script>
+    const hours = JSON.parse('{{ hours | tojson }}');
+    const counts = JSON.parse('{{ counts | tojson }}');
+</script> -->
+{# Option3: without Better Jinja plugin #}
+<!-- <script id="stats-data" type="application/json">
+  {{ {'hours': hours, 'counts': counts} | tojson }}
+</script> -->
+<script src="{{ url_for('static', filename='js/stats.js') }}"></script>
+
+<style>
+.table th:first-child,
+.table td:first-child {
+  text-align: left;
+  padding-left: 1rem;
+}
+</style>
+{% endblock %}
