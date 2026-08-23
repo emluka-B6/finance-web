@@ -388,14 +388,9 @@ function initLightweightChart() {
     requestAnimationFrame(autoFitPriceScale);
 
     // Update button styles
-    document.getElementById("btn-line").classList.toggle("btn-primary", newType === "line");
-    document.getElementById("btn-line").classList.toggle("btn-outline-primary", newType !== "line");
-
-    document.getElementById("btn-candlestick").classList.toggle("btn-primary", newType === "candlestick");
-    document.getElementById("btn-candlestick").classList.toggle("btn-outline-primary", newType !== "candlestick");
-
-    document.getElementById("btn-ohlc").classList.toggle("btn-primary", newType === "ohlc");
-    document.getElementById("btn-ohlc").classList.toggle("btn-outline-primary", newType !== "ohlc");
+    document.getElementById("btn-line").classList.toggle("chart-btn-active", newType === "line");
+    document.getElementById("btn-candlestick").classList.toggle("chart-btn-active", newType === "candlestick");
+    document.getElementById("btn-ohlc").classList.toggle("chart-btn-active", newType === "ohlc");
   }
 
   // Load data for interval
@@ -424,10 +419,8 @@ function initLightweightChart() {
         // Ensure the Y range matches the now-visible data
         requestAnimationFrame(autoFitPriceScale);
 
-        intervalButton.classList.remove("btn-outline-primary");
-        intervalButton.classList.add("btn-primary");
-        oldIntervalButton.classList.remove("btn-primary");
-        oldIntervalButton.classList.add("btn-outline-primary");
+        intervalButton.classList.add("chart-btn-active");
+        oldIntervalButton.classList.remove("chart-btn-active");
       });
   }
 

@@ -14,7 +14,7 @@
 
 .button-divider {
     width: 100%;
-    border: 1.5px solid #007bff;
+    border: 1.5px solid #000000;
     opacity: 1;
     border-radius: 2px;
     margin-top: 4px;
@@ -55,4 +55,15 @@
 @keyframes chart-spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* Selected (active) state for the chart toolbar buttons (left side).
+   Blue background + white text, while keeping the dark outline border
+   that comes from the btn-outline-dark base class. */
+.chart-btn-active,
+.chart-btn-active:hover,
+.chart-btn-active:focus,
+.chart-btn-active:active {
+  background-color: #0d6efd !important;
+  color: #fff !important;
 }
