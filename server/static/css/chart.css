@@ -24,9 +24,10 @@
   font-size: 0.8rem; /* To make 30M fit inside the button */
 }
 
-/* Loading overlay for chart */
+/* Chart area card (relative positioning for loading overlay) */
 .chart-container {
   position: relative;
+  border-width: 2px; /* thicker than the default 1px card border */
 }
 
 .chart-loading-overlay {
