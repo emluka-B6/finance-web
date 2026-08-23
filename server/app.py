@@ -3,24 +3,13 @@ from flask_migrate import Migrate
 from flask_session import Session
 import os
 
-# python3 -m qwen.app, this needs __init__.py
 from misc.extensions import db
-# python3 qwen/app.py
-
-# import sys
-
-# current_dir = os.path.dirname(os.path.abspath(__file__))
-# main_dir = os.path.dirname(current_dir)
-# misc_dir = os.path.join(main_dir, 'misc')
-# sys.path.insert(0, misc_dir)
-# from extensions import db
-
-from news import dashboard_bp
-from favs import fav_bp
-from chart import chart_bp
-from table import table_bp
-from session import stats_bp, log_activity, clean_old_logs
-from user import user_bp, login_manager
+from .favs import fav_bp
+from .news import dashboard_bp
+from .chart import chart_bp
+from .table import table_bp
+from .session import stats_bp, log_activity, clean_old_logs
+from .user import user_bp, login_manager
 
 # FLASK_ENV=production REDIS_URL=redis://localhost:6379/0 python app.py
 # FLASK_ENV=development python app.py
@@ -31,20 +20,13 @@ def create_app(config=None):
 
     # Default config
     # app.config.from_pyfile("config.py")
-
     # Test config override
     if config:
         app.config.update(config)
-        
+
     # Init extensions
     db.init_app(app)
 
-    # initialize Flask-Session ONLY if needed
-    # if app.config.get("SESSION_TYPE") == "sqlalchemy":
-        # session.init_app(app)
-
-    # session.init_app(app)
-        
     session_type = app.config.get("SESSION_TYPE")
     if session_type in ("sqlalchemy", "filesystem", "cachelib", "redis", "memcached", "mongodb"):
         session.init_app(app)
@@ -60,8 +42,6 @@ def create_app(config=None):
 
     return app
 
-
-# app = Flask(__name__)
 
 app_config = dict() 
 app_config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sqlite_alchemy.db' #Main DB
@@ -86,7 +66,8 @@ elif ENV == "development":
     app_config['SESSION_SQLALCHEMY_TABLE'] = 'flask_sessions'
 else:
     app_config["SESSION_TYPE"] = "filesystem"
-    app_config["SESSION_FILE_DIR"] = os.path.join(app.root_path, "flask_session")
+    #No app yet created, should find the path in other way
+    # app_config["SESSION_FILE_DIR"] = os.path.join(app.root_path, "flask_session")
     app_config["SESSION_FILE_THRESHOLD"] = 500      # max number of session files to store
     print("Session files stored in:", app_config["SESSION_FILE_DIR"])
 

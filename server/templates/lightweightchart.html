@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Stocks chart{% endblock %}
+{% block title %}Stocks chart (Lightweight Charts){% endblock %}
 
 {% block content %}
 
@@ -90,33 +90,31 @@
 
     <!-- Chart area -->
     <div class="flex-grow-1 card p-4 shadow-sm chart-container">
-      <canvas id="stockChart" height="400"></canvas>
+      <div id="stockChart"></div>
     </div>
   </div>
 </div>
 
 
-<!-- Chart.js core library (v4) -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.1/dist/chartjs-chart-financial.min.js"></script>
-
-<!-- Luxon + adapter -->
-<script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1"></script>
-
-<!-- Hammer.js + zoom plugin -->
-<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
+<!-- Lightweight Charts library (v3.7.0 - stable API) development build for debugging -->
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@3.7.0/dist/lightweight-charts.standalone.development.js"></script>
 
 <script>
-    // Pass server-rendered data to the external chart.js script
+    // Pass server-rendered data to the external chart script
     window.CHART_CONFIG = {
         ohlcData: {{ ohlc_data | tojson | safe }},
         symbol: '{{ symbol }}',
         name: '{{ name }}'
     };
+    
+    // Debug: Check library loaded
+    window.addEventListener('load', function() {
+        console.log('Window loaded, LightweightCharts:', typeof LightweightCharts);
+        if (typeof LightweightCharts !== 'undefined') {
+            console.log('createChart:', typeof LightweightCharts.createChart);
+            console.log('All exports:', Object.keys(LightweightCharts));
+        }
+    });
 </script>
-<script src="{{ url_for('static', filename='js/chart.js') }}"></script>
-{# <script src="{{ url_for('static', filename='js/linearchart.js') }}"></script> #}
-{# <script src="{{ url_for('static', filename='js/basechartjs.js') }}"></script> #}
+<script src="{{ url_for('static', filename='js/lightweightchart.js') }}"></script>
 {% endblock %}

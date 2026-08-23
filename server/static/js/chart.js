@@ -11,6 +11,97 @@ document.addEventListener("DOMContentLoaded", () => {
   let stockChart;
   let currIntervalButton;
 
+  // ===== Custom Pan State =====
+  let isPanning = false;
+  let panStartX = 0;
+  let panStartMin = null;
+  let panStartMax = null;
+  let panThreshold = 5; // Minimum pixels to trigger pan
+  let initialViewportWidth = null; // Track the viewport width for maintaining size
+  let isLoading = false; // Flag to prevent interactions during loading
+
+  // ===== Data Cache =====
+  // Cache stores all fetched OHLC data to avoid redundant API calls
+  // Key: timestamp (ms), Value: {x, o, h, l, c}
+  const dataCache = new Map();
+
+  // Initialize cache with initial data
+  function initCache(rawData) {
+    rawData.forEach(point => {
+      const timestamp = Date.parse(point.x);
+      dataCache.set(timestamp, {
+        x: timestamp,
+        o: point.o,
+        h: point.h,
+        l: point.l,
+        c: point.c
+      });
+    });
+  }
+
+  // Get data from cache for a given range
+  function getFromCache(minTime, maxTime) {
+    const result = [];
+    const sortedKeys = Array.from(dataCache.keys()).sort((a, b) => a - b);
+    
+    for (const timestamp of sortedKeys) {
+      if (timestamp >= minTime && timestamp <= maxTime) {
+        result.push(dataCache.get(timestamp));
+      }
+    }
+    
+    return result;
+  }
+
+  // Add data to cache
+  function addToCache(rawData) {
+    rawData.forEach(point => {
+      const timestamp = Date.parse(point.x);
+      dataCache.set(timestamp, {
+        x: timestamp,
+        o: point.o,
+        h: point.h,
+        l: point.l,
+        c: point.c
+      });
+    });
+  }
+
+  // Check if cache has data for the entire requested range
+  function cacheHasRange(minTime, maxTime) {
+    // We need at least one data point in the range
+    for (const timestamp of dataCache.keys()) {
+      if (timestamp >= minTime && timestamp <= maxTime) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // ===== Loading Overlay =====
+  function showLoadingOverlay() {
+    isLoading = true;
+    const container = document.querySelector('.chart-container');
+    let overlay = container.querySelector('.chart-loading-overlay');
+    
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'chart-loading-overlay';
+      overlay.innerHTML = '<div class="chart-loading-spinner"></div>';
+      container.appendChild(overlay);
+    } else {
+      overlay.style.display = 'flex';
+    }
+  }
+
+  function hideLoadingOverlay() {
+    isLoading = false;
+    const overlay = document.querySelector('.chart-loading-overlay');
+    if (overlay) {
+      overlay.style.display = 'none';
+    }
+  }
+
   // ===== Favorites =====
   const favBtn = document.getElementById("fav-btn");
   const favIcon = document.getElementById("fav-icon");
@@ -61,8 +152,9 @@ document.addEventListener("DOMContentLoaded", () => {
         source: "auto", // source of tick is X time, not X data index
         autoSkip: true,
         maxRotation: 0,
-        maxTicksLimit: 5,
-        minTicksLimit: 5,
+        count: 4,
+        // maxTicksLimit: 5,
+        // minTicksLimit: 5,
         callback: function (value) {
           const date = new Date(value);
           const pad = (n) => String(n).padStart(2, "0");
@@ -144,29 +236,28 @@ document.addEventListener("DOMContentLoaded", () => {
           legend: { display: false },
           zoom: {
             pan: {
-              enabled: true,
+              enabled: false, // Disable default pan, we use custom handling
               mode: "x",
             },
             zoom: {
               wheel: {
                 enabled: true,
-                speed: 0.1,
-              },
-              pinch: {
-                enabled: true,
-              },
-              drag: {
-                enabled: true,
-                modifierKey: "shift",
-                backgroundColor: "rgba(0, 123, 255, 0.2)",
-                borderColor: "rgba(0, 123, 255, 0.5)",
-                borderWidth: 1,
               },
               mode: "x",
+              onZoomComplete: function() {
+                // Update the tracked viewport width after zoom
+                const scale = stockChart.scales.x;
+                initialViewportWidth = scale.max - scale.min;
+              }
             },
           },
         },
-        scales: { x: createTimeScale(chartInterval) },
+        scales: { 
+          x: createTimeScale(chartInterval),
+          y: {
+            beginAtZero: false,
+          }
+        },
       },
     });
   }
@@ -198,12 +289,18 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function loadData(interval, intervalButton, oldIntervalButton) {
+    // Clear cache when changing interval
+    dataCache.clear();
+    chartInterval = interval;
+
     fetch(`/get_ohlc?symbol=${currentSymbol}&interval=${interval}`)
       .then((response) => response.json())
       .then((data) => {
         rawOhlc = data.ohlc;
         ohlc = toOhlc(rawOhlc);
-        chartInterval = interval;
+        
+        // Initialize cache with new data
+        initCache(rawOhlc);
 
         if (chartType === "line")
           stockChart.data.datasets[0].data = rawOhlc.map((d) => ({ x: Date.parse(d.x), y: d.c }));
@@ -226,7 +323,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const ctx = document.getElementById("stockChart").getContext("2d");
   currIntervalButton = document.getElementById("btn-1d");
   ohlc = toOhlc(rawOhlc);
+  
+  // Initialize data cache with initial data
+  initCache(rawOhlc);
+  
   stockChart = createChart(chartType);
+  
+  // Initialize viewport width tracking
+  setTimeout(() => {
+    const scale = stockChart.scales.x;
+    initialViewportWidth = scale.max - scale.min;
+  }, 100);
 
   // ===== Event listeners =====
   // Interval buttons
@@ -246,4 +353,218 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-reset-zoom").addEventListener("click", () => {
     stockChart.resetZoom();
   });
+
+  // ===== Custom Pan Implementation =====
+  // This implements true viewport panning: panning shifts the visible window
+  // by fetching new data instead of extending the range (which looks like zoom out)
+
+  function getViewportRange() {
+    const scale = stockChart.scales.x;
+    return { min: scale.min, max: scale.max };
+  }
+
+  // Get all cached data for display (for use during pan visual feedback)
+  function getAllCachedData() {
+    const allData = Array.from(dataCache.values()).sort((a, b) => a.x - b.x);
+    return allData;
+  }
+
+  // Check if cache has data for the requested range (even partially)
+  function hasDataInRange(minTime, maxTime) {
+    for (const timestamp of dataCache.keys()) {
+      if (timestamp >= minTime && timestamp <= maxTime) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Get the time range of cached data
+  function getCacheBounds() {
+    if (dataCache.size === 0) return null;
+    const timestamps = Array.from(dataCache.keys()).sort((a, b) => a - b);
+    return {
+      min: timestamps[0],
+      max: timestamps[timestamps.length - 1]
+    };
+  }
+
+  function fetchAndLoadData(startDate, endDate, showOverlay = true) {
+    // Always update the dataset with all cached data for smooth display
+    const allCachedData = getAllCachedData();
+    if (allCachedData.length > 0) {
+      if (chartType === "line")
+        stockChart.data.datasets[0].data = allCachedData.map((d) => ({ x: d.x, y: d.c }));
+      else
+        stockChart.data.datasets[0].data = allCachedData;
+    }
+
+    // Check if viewport extends beyond cached data bounds
+    const cacheBounds = getCacheBounds();
+    
+    if (cacheBounds) {
+      // Add a small buffer (half a bar) to account for exact matches
+      const buffer = getIntervalMs(chartInterval) / 2;
+      const viewportExtendsLeft = startDate < cacheBounds.min - buffer;
+      const viewportExtendsRight = endDate > cacheBounds.max + buffer;
+      
+      if (!viewportExtendsLeft && !viewportExtendsRight) {
+        // Viewport is within cached bounds - just update viewport
+        const cachedDataInRange = getFromCache(startDate, endDate);
+        console.log('Using cached data:', cachedDataInRange.length, 'points (cache bounds:', 
+                    new Date(cacheBounds.min).toLocaleDateString(), '-', 
+                    new Date(cacheBounds.max).toLocaleDateString() + ')');
+        stockChart.zoomScale('x', { min: startDate, max: endDate }, 'none');
+        return;
+      }
+      
+      console.log('Viewport extends beyond cache:', 
+                  viewportExtendsLeft ? 'LEFT' : '', 
+                  viewportExtendsRight ? 'RIGHT' : '',
+                  '(viewport:', new Date(startDate).toLocaleDateString(), '-', new Date(endDate).toLocaleDateString() + ')',
+                  '(cache:', new Date(cacheBounds.min).toLocaleDateString(), '-', new Date(cacheBounds.max).toLocaleDateString() + ')');
+    }
+
+    // Need to fetch from server
+    if (showOverlay) showLoadingOverlay();
+    
+    const startDateStr = new Date(startDate).toISOString();
+    const endDateStr = new Date(endDate).toISOString();
+
+    fetch(`/get_ohlc_range?symbol=${currentSymbol}&interval=${chartInterval}&start=${startDateStr}&end=${endDateStr}`)
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.error) {
+          console.error('Error fetching range:', data.error);
+          return;
+        }
+        
+        if (!data.ohlc || data.ohlc.length === 0) {
+          console.warn('No data returned for range:', startDateStr, 'to', endDateStr);
+          // Still update viewport even if no data
+          stockChart.zoomScale('x', { min: startDate, max: endDate }, 'none');
+          return;
+        }
+        
+        console.log('Received', data.ohlc.length, 'data points for range');
+        
+        // Add fetched data to cache
+        addToCache(data.ohlc);
+        
+        // Get all cached data (including newly fetched)
+        const allCachedData = getAllCachedData();
+
+        if (chartType === "line")
+          stockChart.data.datasets[0].data = allCachedData.map((d) => ({ x: d.x, y: d.c }));
+        else
+          stockChart.data.datasets[0].data = allCachedData;
+
+        // Set the viewport by zooming to the new range
+        stockChart.zoomScale('x', { min: startDate, max: endDate }, 'none');
+        
+        // Update viewport width tracking
+        initialViewportWidth = endDate - startDate;
+      })
+      .catch((err) => {
+        console.error('Pan fetch error:', err);
+        // Still update viewport even on error
+        stockChart.zoomScale('x', { min: startDate, max: endDate }, 'none');
+      })
+      .finally(() => {
+        if (showOverlay) hideLoadingOverlay();
+      });
+  }
+  
+  // Get milliseconds per bar for each interval
+  function getIntervalMs(interval) {
+    const intervalMap = {
+      '30m': 30 * 60 * 1000,
+      '1h': 60 * 60 * 1000,
+      '4h': 4 * 60 * 60 * 1000,
+      '1d': 24 * 60 * 60 * 1000,
+      '1wk': 7 * 24 * 60 * 60 * 1000
+    };
+    return intervalMap[interval] || 24 * 60 * 60 * 1000; // default to 1 day
+  }
+
+  // Mouse down - start pan
+  ctx.canvas.addEventListener('mousedown', (e) => {
+    if (isLoading) return; // Prevent panning while loading
+    isPanning = true;
+    panStartX = e.clientX;
+    const range = getViewportRange();
+    panStartMin = range.min;
+    panStartMax = range.max;
+    
+    // Ensure all cached data is in the dataset for smooth panning
+    const allCachedData = getAllCachedData();
+    if (chartType === "line")
+      stockChart.data.datasets[0].data = allCachedData.map((d) => ({ x: d.x, y: d.c }));
+    else
+      stockChart.data.datasets[0].data = allCachedData;
+    
+    ctx.canvas.style.cursor = 'grabbing';
+    e.preventDefault();
+  });
+
+  // Mouse move - calculate pan distance
+  ctx.canvas.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    
+    const deltaX = e.clientX - panStartX;
+    
+    // Visual feedback during pan - shift the visible range
+    const viewportWidth = panStartMax - panStartMin;
+    const pixelWidth = ctx.canvas.clientWidth;
+    
+    // Calculate the time shift based on pixel movement (inverted for natural drag)
+    const timeShift = (deltaX / pixelWidth) * viewportWidth;
+    
+    // Apply visual feedback - shift the axis range
+    const newMin = panStartMin - timeShift;
+    const newMax = panStartMax - timeShift;
+    
+    // Use zoomScale for visual feedback (this doesn't lock the axis)
+    stockChart.zoomScale('x', { min: newMin, max: newMax }, 'none');
+  });
+
+  // Mouse up - complete pan
+  ctx.canvas.addEventListener('mouseup', (e) => {
+    if (!isPanning) return;
+    isPanning = false;
+    ctx.canvas.style.cursor = 'default';
+
+    const deltaX = e.clientX - panStartX;
+    
+    // Only fetch new data if we actually moved
+    if (Math.abs(deltaX) < panThreshold) {
+      // Reset to original position if below threshold
+      stockChart.zoomScale('x', { min: panStartMin, max: panStartMax }, 'none');
+      return;
+    }
+
+    const viewportWidth = panStartMax - panStartMin;
+    const pixelWidth = ctx.canvas.clientWidth;
+    const timeShift = (deltaX / pixelWidth) * viewportWidth;
+
+    const newMin = panStartMin - timeShift;
+    const newMax = panStartMax - timeShift;
+
+    // Fetch new data for the panned viewport
+    fetchAndLoadData(newMin, newMax);
+  });
+
+  // Mouse leave - cancel pan (reset to start position)
+  ctx.canvas.addEventListener('mouseleave', () => {
+    if (!isPanning) return;
+    
+    isPanning = false;
+    ctx.canvas.style.cursor = 'default';
+    
+    // Reset to original position
+    stockChart.zoomScale('x', { min: panStartMin, max: panStartMax }, 'none');
+  });
+
+  // Prevent default drag behavior
+  ctx.canvas.addEventListener('dragstart', (e) => e.preventDefault());
 });

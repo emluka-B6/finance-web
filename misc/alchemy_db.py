@@ -2,8 +2,8 @@ import sys
 print("Loaded user module as:", __name__)
 print("Module path:", sys.modules[__name__])
 
-from extensions import db
-from extensions import ALREADY_ADDED, DB_ERROR, DB_SUCCESS
+from .extensions import db
+from .extensions import ALREADY_ADDED, DB_ERROR, DB_SUCCESS
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 

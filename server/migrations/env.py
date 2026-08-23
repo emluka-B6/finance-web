@@ -21,8 +21,8 @@ if config.config_file_name is not None:
 
 import os, sys
 migrations_dir = os.path.dirname(os.path.abspath(__file__))
-qwen_dir = os.path.os.path.join(migrations_dir, os.path.pardir)
-main_dir = os.path.os.path.join(qwen_dir, os.path.pardir)
+qwen_dir = os.path.join(migrations_dir, os.path.pardir)
+main_dir = os.path.join(qwen_dir, os.path.pardir)
 misc_dir = os.path.join(main_dir, 'misc')
 sys.path.insert(0, misc_dir)
 print("misc " + misc_dir)

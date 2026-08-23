@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, time
 import yfinance as yf
-from cache import load_cache, save_cache
+from .cache import load_cache, save_cache
 
 MAX_BARS = 50
 
