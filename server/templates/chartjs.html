@@ -8,9 +8,9 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
 
 <div class="container text-center">
-  <div class="d-inline-flex align-items-center justify-content-center mb-4">
-    <h3 class="mb-0">{{ name }}</h3>
-    <button id="fav-btn" class="btn btn-link p-0 ms-2" title="Add to favorites">
+  <div class="position-relative d-flex align-items-center justify-content-center mb-3">
+    <h3 class="mb-0" style="font-size: 1.25rem;">{{ name }}</h3>
+    <button id="fav-btn" class="btn btn-link p-0 position-absolute end-0 top-50 translate-middle-y" title="Add to favorites">
       <i id="fav-icon"
          class="fa{{ 's' if is_favorite(symbol) else 'r' }} fa-star text-warning"
          style="font-size: 1.5rem;"></i>
