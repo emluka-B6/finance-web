@@ -393,17 +393,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Match Lightweight Charts' cache-bound check. The half-bar tolerance avoids
-  // refetches caused by timestamp rounding at the first or last visible bar.
+  // Only load older history. Newer data is intentionally not requested while
+  // panning; it will be refreshed separately when that behavior is added.
+  // The half-bar tolerance avoids refetches caused by timestamp rounding at the
+  // first visible bar.
   function viewportNeedsFetch(startDate, endDate) {
     const cacheBounds = getCacheBounds();
     if (!cacheBounds) return true;
 
     const boundaryTolerance = getIntervalMs(chartInterval) / 2;
     const viewportExtendsLeft = startDate < cacheBounds.min - boundaryTolerance;
-    const viewportExtendsRight = endDate > cacheBounds.max + boundaryTolerance;
 
-    if (!viewportExtendsLeft && !viewportExtendsRight) {
+    if (!viewportExtendsLeft) {
       const cachedDataInRange = getFromCache(startDate, endDate);
       console.log('Using cached data:', cachedDataInRange.length, 'points (cache bounds:',
                   new Date(cacheBounds.min).toLocaleDateString(), '-',
@@ -412,8 +413,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     console.log('Viewport extends beyond cache:',
-                viewportExtendsLeft ? 'LEFT' : '',
-                viewportExtendsRight ? 'RIGHT' : '',
+                'LEFT',
                 '(viewport:', new Date(startDate).toLocaleDateString(), '-', new Date(endDate).toLocaleDateString() + ')',
                 '(cache:', new Date(cacheBounds.min).toLocaleDateString(), '-', new Date(cacheBounds.max).toLocaleDateString() + ')');
     return true;
@@ -455,12 +455,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const boundaryTolerance = getIntervalMs(chartInterval) / 2;
     const viewportWidth = Math.max(endDate - startDate, getIntervalMs(chartInterval));
     const viewportExtendsLeft = !cacheBounds || startDate < cacheBounds.min - boundaryTolerance;
-    const viewportExtendsRight = !cacheBounds || endDate > cacheBounds.max + boundaryTolerance;
 
-    // Fetch one extra visible window in the direction being explored. This is
-    // the cache buffer that reduces repeated /get_ohlc_range calls on panning.
+    // Fetch one extra visible window of older history to reduce repeated
+    // /get_ohlc_range calls while panning left.
     const fetchStart = viewportExtendsLeft ? startDate - viewportWidth : startDate;
-    const fetchEnd = viewportExtendsRight ? endDate + viewportWidth : endDate;
+    const fetchEnd = endDate;
     const startDateStr = encodeURIComponent(new Date(fetchStart).toISOString());
     const endDateStr = encodeURIComponent(new Date(fetchEnd).toISOString());
 
