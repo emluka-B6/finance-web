@@ -19,6 +19,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let panThreshold = 5; // Minimum pixels to trigger pan
   let initialViewportWidth = null; // Track the viewport width for maintaining size
   let isLoading = false; // Flag to prevent interactions during loading
+  let fetchInFlight = false;
+  let pendingViewport = null;
 
   // ===== Data Cache =====
   // Cache stores all fetched OHLC data to avoid redundant API calls
@@ -152,9 +154,8 @@ document.addEventListener("DOMContentLoaded", () => {
         source: "auto", // source of tick is X time, not X data index
         autoSkip: true,
         maxRotation: 0,
-        count: 4,
-        // maxTicksLimit: 5,
-        // minTicksLimit: 5,
+        maxTicksLimit: 5,
+        minTicksLimit: 5,
         callback: function (value) {
           const date = new Date(value);
           const pad = (n) => String(n).padStart(2, "0");
@@ -382,8 +383,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  function fetchAndLoadData(startDate, endDate, showOverlay = true) {
-    // Always update the dataset with all cached data for smooth display
+  function updateDatasetFromCache() {
     const allCachedData = getAllCachedData();
     if (allCachedData.length > 0) {
       if (chartType === "line")
@@ -391,40 +391,80 @@ document.addEventListener("DOMContentLoaded", () => {
       else
         stockChart.data.datasets[0].data = allCachedData;
     }
+  }
 
-    // Check if viewport extends beyond cached data bounds
+  // Match Lightweight Charts' cache-bound check. The half-bar tolerance avoids
+  // refetches caused by timestamp rounding at the first or last visible bar.
+  function viewportNeedsFetch(startDate, endDate) {
     const cacheBounds = getCacheBounds();
-    
-    if (cacheBounds) {
-      // Add a small buffer (half a bar) to account for exact matches
-      const buffer = getIntervalMs(chartInterval) / 2;
-      const viewportExtendsLeft = startDate < cacheBounds.min - buffer;
-      const viewportExtendsRight = endDate > cacheBounds.max + buffer;
-      
-      if (!viewportExtendsLeft && !viewportExtendsRight) {
-        // Viewport is within cached bounds - just update viewport
-        const cachedDataInRange = getFromCache(startDate, endDate);
-        console.log('Using cached data:', cachedDataInRange.length, 'points (cache bounds:', 
-                    new Date(cacheBounds.min).toLocaleDateString(), '-', 
-                    new Date(cacheBounds.max).toLocaleDateString() + ')');
-        stockChart.zoomScale('x', { min: startDate, max: endDate }, 'none');
-        return;
-      }
-      
-      console.log('Viewport extends beyond cache:', 
-                  viewportExtendsLeft ? 'LEFT' : '', 
-                  viewportExtendsRight ? 'RIGHT' : '',
-                  '(viewport:', new Date(startDate).toLocaleDateString(), '-', new Date(endDate).toLocaleDateString() + ')',
-                  '(cache:', new Date(cacheBounds.min).toLocaleDateString(), '-', new Date(cacheBounds.max).toLocaleDateString() + ')');
+    if (!cacheBounds) return true;
+
+    const boundaryTolerance = getIntervalMs(chartInterval) / 2;
+    const viewportExtendsLeft = startDate < cacheBounds.min - boundaryTolerance;
+    const viewportExtendsRight = endDate > cacheBounds.max + boundaryTolerance;
+
+    if (!viewportExtendsLeft && !viewportExtendsRight) {
+      const cachedDataInRange = getFromCache(startDate, endDate);
+      console.log('Using cached data:', cachedDataInRange.length, 'points (cache bounds:',
+                  new Date(cacheBounds.min).toLocaleDateString(), '-',
+                  new Date(cacheBounds.max).toLocaleDateString() + ')');
+      return false;
     }
 
+    console.log('Viewport extends beyond cache:',
+                viewportExtendsLeft ? 'LEFT' : '',
+                viewportExtendsRight ? 'RIGHT' : '',
+                '(viewport:', new Date(startDate).toLocaleDateString(), '-', new Date(endDate).toLocaleDateString() + ')',
+                '(cache:', new Date(cacheBounds.min).toLocaleDateString(), '-', new Date(cacheBounds.max).toLocaleDateString() + ')');
+    return true;
+  }
+
+  function checkViewportAfterFetch() {
+    if (!pendingViewport) return;
+
+    const { startDate, endDate } = pendingViewport;
+    pendingViewport = null;
+    if (viewportNeedsFetch(startDate, endDate)) {
+      fetchAndLoadData(startDate, endDate);
+    }
+  }
+
+  function fetchAndLoadData(startDate, endDate, showOverlay = true) {
+    // Always show every cached bar while panning, so cached buffer data is
+    // immediately available before a request is necessary.
+    updateDatasetFromCache();
+
+    // Check if viewport extends beyond cached data bounds.
+    const cacheBounds = getCacheBounds();
+    if (!viewportNeedsFetch(startDate, endDate)) {
+      stockChart.zoomScale('x', { min: startDate, max: endDate }, 'none');
+      return;
+    }
+
+    // Do not issue overlapping range requests. Preserve the most recent user
+    // viewport and evaluate it against the expanded cache when this fetch ends.
+    if (fetchInFlight) {
+      pendingViewport = { startDate, endDate };
+      return;
+    }
+
+    fetchInFlight = true;
     // Need to fetch from server
     if (showOverlay) showLoadingOverlay();
-    
-    const startDateStr = new Date(startDate).toISOString();
-    const endDateStr = new Date(endDate).toISOString();
 
-    fetch(`/get_ohlc_range?symbol=${currentSymbol}&interval=${chartInterval}&start=${startDateStr}&end=${endDateStr}`)
+    const boundaryTolerance = getIntervalMs(chartInterval) / 2;
+    const viewportWidth = Math.max(endDate - startDate, getIntervalMs(chartInterval));
+    const viewportExtendsLeft = !cacheBounds || startDate < cacheBounds.min - boundaryTolerance;
+    const viewportExtendsRight = !cacheBounds || endDate > cacheBounds.max + boundaryTolerance;
+
+    // Fetch one extra visible window in the direction being explored. This is
+    // the cache buffer that reduces repeated /get_ohlc_range calls on panning.
+    const fetchStart = viewportExtendsLeft ? startDate - viewportWidth : startDate;
+    const fetchEnd = viewportExtendsRight ? endDate + viewportWidth : endDate;
+    const startDateStr = encodeURIComponent(new Date(fetchStart).toISOString());
+    const endDateStr = encodeURIComponent(new Date(fetchEnd).toISOString());
+
+    fetch(`/get_ohlc_range?symbol=${encodeURIComponent(currentSymbol)}&interval=${encodeURIComponent(chartInterval)}&start=${startDateStr}&end=${endDateStr}`)
       .then((response) => response.json())
       .then((data) => {
         if (data.error) {
@@ -444,13 +484,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // Add fetched data to cache
         addToCache(data.ohlc);
         
-        // Get all cached data (including newly fetched)
-        const allCachedData = getAllCachedData();
-
-        if (chartType === "line")
-          stockChart.data.datasets[0].data = allCachedData.map((d) => ({ x: d.x, y: d.c }));
-        else
-          stockChart.data.datasets[0].data = allCachedData;
+        // Display all cached data, including the extra prefetch buffer.
+        updateDatasetFromCache();
 
         // Set the viewport by zooming to the new range
         stockChart.zoomScale('x', { min: startDate, max: endDate }, 'none');
@@ -464,7 +499,9 @@ document.addEventListener("DOMContentLoaded", () => {
         stockChart.zoomScale('x', { min: startDate, max: endDate }, 'none');
       })
       .finally(() => {
+        fetchInFlight = false;
         if (showOverlay) hideLoadingOverlay();
+        checkViewportAfterFetch();
       });
   }
   
