@@ -1,5 +1,5 @@
 from unittest.mock import patch, MagicMock
-from news import parse_feed
+from server.news import parse_feed
 
 @patch("feedparser.parse")
 def test_parse_feed_sorts_by_date(mock_parse):
@@ -81,7 +81,7 @@ def test_parse_feed_no_entries(mock_parse):
 
 
 
-from news import format_datetime
+from server.news import format_datetime
 
 def test_format_datetime_none():
     assert format_datetime(None) == ""

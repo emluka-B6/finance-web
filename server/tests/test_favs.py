@@ -40,7 +40,7 @@ def test_toggle_favorite_removes_symbol(client):
     with client.session_transaction() as sess:
         assert sess["favorites"] == []
 
-@patch("favs.requests.get")
+@patch("server.favs.requests.get")
 def test_search_ticker_success(mock_get, client):
     mock_get.return_value.ok = True
     mock_get.return_value.json.return_value = {
@@ -70,7 +70,7 @@ def test_search_ticker_success_with_magickmock(client):
     mock_resp.ok = True
     mock_resp.json.return_value = fake_json
 
-    with patch("favs.requests.get", return_value=mock_resp):
+    with patch("server.favs.requests.get", return_value=mock_resp):
         response = client.get("/search_ticker?q=app")
 
     assert response.status_code == 200
@@ -88,23 +88,23 @@ def test_search_ticker_non_ok_response(client):
     mock_resp = MagicMock()
     mock_resp.ok = False
 
-    with patch("favs.requests.get", return_value=mock_resp):
+    with patch("server.favs.requests.get", return_value=mock_resp):
         response = client.get("/search_ticker?q=app")
 
     assert response.status_code == 500
     assert response.json == {"error": "No data"}
 
 def test_search_ticker_exception(client):
-    with patch("favs.requests.get", side_effect=Exception("Boom!")):
+    with patch("server.favs.requests.get", side_effect=Exception("Boom!")):
         response = client.get("/search_ticker?q=app")
 
     assert response.status_code == 500
     assert response.json == {"error": "Boom!"}
 
 
-@patch("favs.request_yahoo_ticker")     # should NOT be called
-@patch("favs.save_cache")               # should NOT be called
-@patch("favs.load_cache")
+@patch("server.favs.request_yahoo_ticker")     # should NOT be called
+@patch("server.favs.save_cache")               # should NOT be called
+@patch("server.favs.load_cache")
 def test_search_ticker_cache_hit(mock_load_cache, mock_save_cache, mock_yahoo, client):
     # Simulate that we already have cached results
     mock_load_cache.return_value = [
@@ -120,9 +120,9 @@ def test_search_ticker_cache_hit(mock_load_cache, mock_save_cache, mock_yahoo, c
     mock_yahoo.assert_not_called()
     mock_save_cache.assert_not_called()
 
-@patch("favs.load_cache")
-@patch("favs.save_cache")
-@patch("favs.request_yahoo_ticker")
+@patch("server.favs.load_cache")
+@patch("server.favs.save_cache")
+@patch("server.favs.request_yahoo_ticker")
 def test_search_cache_miss(mock_yahoo, mock_save_cache, mock_load_cache, client):
     mock_load_cache.return_value = []   # no cache
     mock_yahoo.return_value = (
@@ -139,9 +139,9 @@ def test_search_cache_miss(mock_yahoo, mock_save_cache, mock_load_cache, client)
     # Should call save_cache
     mock_save_cache.assert_called_once_with("goog", mock_yahoo.return_value[0])
 
-@patch("favs.load_cache")
-@patch("favs.save_cache")
-@patch("favs.request_yahoo_ticker")
+@patch("server.favs.load_cache")
+@patch("server.favs.save_cache")
+@patch("server.favs.request_yahoo_ticker")
 def test_search_cache_yahoo_error(mock_yahoo, mock_save_cache, mock_load_cache, client):
     mock_load_cache.return_value = []
     mock_yahoo.return_value = ([], "Timeout")
@@ -155,7 +155,7 @@ def test_search_cache_yahoo_error(mock_yahoo, mock_save_cache, mock_load_cache, 
 
 
 
-from favs import format_time_str
+from server.favs import format_time_str
 from datetime import datetime, timezone
 
 def test_format_time_str_int_timestamp(fixed_datetime):

@@ -1,4 +1,4 @@
-from yfinance_imp import get_trading_hours_date_range, MARKET_CLOSE
+from server.yfinance_imp import get_trading_hours_date_range, MARKET_CLOSE
 from datetime import datetime
 import pytest
 
@@ -11,7 +11,7 @@ def test_invalid_interval_date_range():
 
 
 def test_1d_date_range(monkeypatch):
-    monkeypatch.setattr("yfinance_imp.MAX_BARS", 10)
+    monkeypatch.setattr("server.yfinance_imp.MAX_BARS", 10)
 
     curr_dt = datetime(2025, 11, 14, 12, 00) # Friday
     start, end = get_trading_hours_date_range("1d", curr_dt)
@@ -21,7 +21,7 @@ def test_1d_date_range(monkeypatch):
     assert start == datetime(2025, 11, 3, MARKET_CLOSE.hour, MARKET_CLOSE.minute)
 
 def test_4h_date_range(monkeypatch):
-    monkeypatch.setattr("yfinance_imp.MAX_BARS", 10) # 2 bars per stocks day
+    monkeypatch.setattr("server.yfinance_imp.MAX_BARS", 10) # 2 bars per stocks day
 
     curr_dt = datetime(2025, 11, 14, 13, 00) # Friday
     start, end = get_trading_hours_date_range("4h", curr_dt)
@@ -34,7 +34,7 @@ def test_4h_date_range(monkeypatch):
 
 
 def test_1h_date_range(monkeypatch):
-    monkeypatch.setattr("yfinance_imp.MAX_BARS", 12) # 8 bars per stocks day
+    monkeypatch.setattr("server.yfinance_imp.MAX_BARS", 12) # 8 bars per stocks day
 
     curr_dt = datetime(2025, 11, 14, 12, 30) # Friday
     start, end = get_trading_hours_date_range("1h", curr_dt)
@@ -46,7 +46,7 @@ def test_1h_date_range(monkeypatch):
 
 
 def test_1wk_date_range(monkeypatch):
-    monkeypatch.setattr("yfinance_imp.MAX_BARS", 2)
+    monkeypatch.setattr("server.yfinance_imp.MAX_BARS", 2)
 
     curr_dt = datetime(2025, 11, 14, 12, 30) # Friday
     start, end = get_trading_hours_date_range("1wk", curr_dt)
@@ -58,7 +58,7 @@ def test_1wk_date_range(monkeypatch):
     assert start == datetime(2025, 11, 7, 12, 30)
 
 def test_1h_omit_weekend_on_start(monkeypatch):
-    monkeypatch.setattr("yfinance_imp.MAX_BARS", 12) # 8 bars per stocks day
+    monkeypatch.setattr("server.yfinance_imp.MAX_BARS", 12) # 8 bars per stocks day
 
     curr_dt = datetime(2025, 11, 15, 12, 30) # Saturday
     start, end = get_trading_hours_date_range("1h", curr_dt)

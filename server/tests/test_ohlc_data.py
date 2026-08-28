@@ -1,4 +1,4 @@
-from yfinance_imp import merge_ohlc_data
+from server.yfinance_imp import merge_ohlc_data
 from datetime import datetime
 
 def test_merge_basic():
@@ -51,10 +51,10 @@ def test_merge_only_new_data():
     assert result == new
 
 from unittest.mock import patch
-from yfinance_imp import update_ohlc_cache
+from server.yfinance_imp import update_ohlc_cache
 
-@patch("yfinance_imp.fetch_ohlc_data")
-@patch("yfinance_imp.load_cache")
+@patch("server.yfinance_imp.fetch_ohlc_data")
+@patch("server.yfinance_imp.load_cache")
 def test_update_empty_cache(mock_cache, mock_fetch):
     mock_cache.return_value = {"last_updated": None, "data": []}
     mock_fetch.return_value = (
@@ -71,8 +71,8 @@ def test_update_empty_cache(mock_cache, mock_fetch):
         "2025-10-18T12:00",
     ]
 
-@patch("yfinance_imp.fetch_ohlc_data")
-@patch("yfinance_imp.load_cache")
+@patch("server.yfinance_imp.fetch_ohlc_data")
+@patch("server.yfinance_imp.load_cache")
 def test_update_partial_cache(mock_cache, mock_fetch):
     mock_cache.return_value = {
         "last_updated": None,
@@ -89,8 +89,8 @@ def test_update_partial_cache(mock_cache, mock_fetch):
     assert result["data"][1]["o"] == 2 # fetched value overwrite cached
 
 
-@patch("yfinance_imp.fetch_ohlc_data")
-@patch("yfinance_imp.load_cache")
+@patch("server.yfinance_imp.fetch_ohlc_data")
+@patch("server.yfinance_imp.load_cache")
 def test_update_only_middle_in_cache(mock_cache, mock_fetch):
     mock_cache.return_value = {
         "last_updated": None,
@@ -110,8 +110,8 @@ def test_update_only_middle_in_cache(mock_cache, mock_fetch):
     assert result["data"][1]["o"] == 2 # fetched value overwrite cached
     assert result["data"][2]["o"] == 2 # fetched value overwrite cached
 
-@patch("yfinance_imp.fetch_ohlc_data")
-@patch("yfinance_imp.load_cache")
+@patch("server.yfinance_imp.fetch_ohlc_data")
+@patch("server.yfinance_imp.load_cache")
 def test_update_fully_cached_range(mock_cache, mock_fetch):
     mock_cache.return_value = {
         "last_updated": None,

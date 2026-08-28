@@ -1,13 +1,5 @@
-import sys
-import os
-
-# Ensure project root (where app.py lives) is on sys.path
-curr_dir = os.path.dirname(__file__)
-up_dir = os.path.join(curr_dir, '..')
-sys.path.insert(0, os.path.abspath(up_dir))
-
 from misc.extensions import db
-from app import create_app
+from server.app import create_app
 import pytest
 from cachelib import FileSystemCache
 
@@ -73,5 +65,5 @@ def fixed_datetime(monkeypatch):
             cls.fixed_now = datetime
             cls.useTz = useTz
 
-    monkeypatch.setattr("favs.datetime", FixedDatetime)
+    monkeypatch.setattr("server.favs.datetime", FixedDatetime)
     return FixedDatetime

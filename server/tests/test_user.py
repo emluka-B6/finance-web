@@ -1,8 +1,7 @@
 from unittest.mock import patch, MagicMock, ANY
 
 from misc.extensions import ALREADY_ADDED, DB_ERROR, DB_SUCCESS
-from misc.alchemy_db import AlchemyDb, Role
-from models.user import User
+from misc.alchemy_db import AlchemyDb, Role, User
 
 @patch("misc.alchemy_db.db.session")
 @patch("misc.alchemy_db.User")
@@ -146,7 +145,7 @@ def test_delete_user_failure(client):
         status, msg = service.deleteUser(100)
 
         assert status == DB_ERROR
-        assert msg == "User not existing"
+        assert msg == "NOT ADDED"
 
 def test_get_users(client):
     service = AlchemyDb()

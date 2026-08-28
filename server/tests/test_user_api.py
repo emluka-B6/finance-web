@@ -78,7 +78,7 @@ def test_login_with_missing_input(client):
     )
     assert b"Error: Both email and password are required" in response.data
 
-@patch("user.dbApi.validateUser")
+@patch("server.user.dbApi.validateUser")
 def test_login_with_invalid_data(mock_validate, client):
     mock_validate.return_value = None
 
