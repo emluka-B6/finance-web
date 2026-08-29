@@ -62,6 +62,7 @@ def main() -> int:
         print(f"Error: database does not exist: {source_database}", file=sys.stderr)
         return 1
 
+    relative_database: Path | None = None
     try:
         run_git("worktree", "add", "--detach", str(worktree_path), args.revision)
         if not args.no_database_copy:
@@ -74,7 +75,7 @@ def main() -> int:
         return 1
 
     print(f"Created isolated worktree: {worktree_path}")
-    if not args.no_database_copy:
+    if relative_database is not None:
         print(f"Copied database: {source_database} -> {worktree_path / relative_database}")
     print("Run migrations or destructive tests only inside this worktree.")
     print(f"Remove it when finished: git worktree remove {worktree_path}")

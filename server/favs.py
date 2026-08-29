@@ -215,7 +215,7 @@ def toggle_favorite(symbol):
             db.session.delete(existing)
             status = "removed"
         else:
-            db.session.add(Favorite(user_id=current_user.id, symbol=symbol, name=name))
+            db.session.add(Favorite(user_id=current_user.id, symbol=symbol, name=name)) # type: ignore
             status = "added"
         db.session.commit()
     else:

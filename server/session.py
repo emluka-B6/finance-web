@@ -1,4 +1,11 @@
 from datetime import datetime, timedelta
+from collections import Counter
+
+import pytz
+from flask import Blueprint, render_template
+from flask_login import current_user, login_required
+from sqlalchemy import func
+
 from misc.extensions import db  # your global SQLAlchemy instance
 
 
@@ -19,14 +26,12 @@ class ActivityLog(db.Model):
         return f"<ActivityLog {self.user} {self.route} {self.method}>"
     
 
-def log_activity(path, method):
+def log_activity(path: str, method: str) -> None:
     """Logs user route visits and actions."""
     try:
+        user_name = current_user.name if current_user.is_authenticated else "guest"
         new_log = ActivityLog(
-            user = current_user.name if current_user.is_authenticated else "guest",
-            route=path,
-            method=method,
-            timestamp=datetime.utcnow(),
+            user=user_name, route=path, method=method, timestamp=datetime.utcnow(), # type: ignore
         )
         db.session.add(new_log)
         db.session.commit()
@@ -45,10 +50,6 @@ def clean_old_logs(days):
 #below in the table most frequently viewed route or next to the chart ?
 #or two tables one overall and one for current user
 
-from sqlalchemy import func
-from flask import render_template, Blueprint
-from flask_login import login_required, current_user
-
 stats_bp = Blueprint("stats", __name__)
 
 def get_hours_map(cutoff):
@@ -66,12 +67,15 @@ def get_hours_map(cutoff):
     local_offset = int((datetime.now() - datetime.utcnow()).total_seconds() // 3600)
 
     # map {hour_utc: count}
-    hour_map = {(int(row.hour) + local_offset) % 24 : int(row.count) 
-                 for row in hourly_counts}
+    hour_map = {}
+    for row in hourly_counts:
+        hour_value = row[0]
+        count_value = row[1]
+        if hour_value is None:
+            continue
+        hour_map[(int(hour_value) + local_offset) % 24] = int(count_value)
     return hour_map
     
-from collections import Counter
-import pytz
 def get_hours_map_with_dst(cutoff):    
     # get timestamps (as Python datetimes) for last 30 days
     rows = (

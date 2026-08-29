@@ -35,12 +35,6 @@ class User(UserMixin, db.Model):
     
     def get_id(self): # While UserMixin provides this, it's good to understand
         return str(self.id) # Flask-Login expects ID as a string
-    
-    def is_authenticated(self):
-        return True  # Ensure this returns True for logged-in users
-    
-    def is_active(self):
-        return True  # Ensure the user is active
 
     
 class Favorite(db.Model):
@@ -87,7 +81,7 @@ class AlchemyDb():
     
         hashed = generate_password_hash(password)
         # new_user = User(name, email)
-        new_user = User(name=name, email=email, password=hashed, role=role)
+        new_user = User(name=name, email=email, password=hashed, role=role) # type: ignore
 
         try:
             db.session.add(new_user)
