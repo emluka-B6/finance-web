@@ -79,6 +79,12 @@ def save_cache(query, data):
 
 import yfinance as yf
 from datetime import datetime, timezone
+DEFAULT_FAVORITES = [
+    {"symbol": "AAPL", "name": "Apple"},
+    {"symbol": "MSFT", "name": "Microsoft"},
+    {"symbol": "GOOGL", "name": "Alphabet"},
+]
+
 
 
 def get_ticker_fast_snapshot(name, ticker):
@@ -174,16 +180,15 @@ def get_favorites():
 
     return favorites
 
+
+def get_favorites_or_defaults():
+    """Return saved favourites, or the default symbols for a new session."""
+    favorites = get_favorites()
+    return favorites or DEFAULT_FAVORITES
+
 @fav_bp.route("/favorites_data")
 def favorites_data():
-    favorites = get_favorites()
-    result = []
-
-    if len(favorites) == 0:
-        favorites = [{"symbol": "AAPL", "name": "Apple"}, 
-                     {"symbol": "MSFT", "name": "Microsoft"},
-                     {"symbol": "GOOGL", "name": "Alphabet"}] 
-    
+    favorites = get_favorites_or_defaults()
     result = get_snapshot(favorites)
     return jsonify(result)
 

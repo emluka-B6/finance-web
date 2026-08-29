@@ -1,6 +1,20 @@
 from unittest.mock import patch, MagicMock
 from server.news import parse_feed
 
+
+@patch("server.news.parse_company_feed", return_value=[])
+@patch("server.news.parse_general_feed", return_value=[])
+def test_news2_renders_favorite_placeholders(mock_general_feed, mock_company_feed, client):
+    with client.session_transaction() as sess:
+        sess["favorites"] = [{"symbol": "NVDA", "name": "NVIDIA"}]
+
+    response = client.get("/news2")
+
+    assert response.status_code == 200
+    assert b'data-symbol="NVDA"' in response.data
+    assert b">NVIDIA</a>" in response.data
+    assert response.data.count("—".encode()) == 3
+
 @patch("feedparser.parse")
 def test_parse_feed_sorts_by_date(mock_parse):
     mock_parse.return_value = MagicMock(entries=[

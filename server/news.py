@@ -2,6 +2,7 @@ import feedparser
 import yfinance as yf
 from flask import Blueprint, render_template
 from datetime import datetime
+from .favs import get_favorites_or_defaults
 
 # refering to url from different module is url_for("news.news")
 dashboard_bp = Blueprint("news", __name__)
@@ -104,6 +105,7 @@ def news():
 @dashboard_bp.route("/news2")
 def news2():
     tickers = ["AAPL", "MSFT", "GOOGL"]
+    favorites = get_favorites_or_defaults()
     general_news = parse_general_feed(10)
     company_news = {
         ticker: parse_company_feed(ticker)
@@ -113,5 +115,6 @@ def news2():
     return render_template(
         "news2.html",
         general_news=general_news,
-        company_news=company_news
+        company_news=company_news,
+        favorites=favorites
     )

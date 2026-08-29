@@ -1,22 +1,27 @@
 async function updateFavorites() {
     try {
         const response = await fetch("/favorites_data");
+        if (!response.ok) {
+            throw new Error(`Fetch error ${response.status}`);
+        }
         const data = await response.json();
 
         const tbody = document.getElementById("favorites-body");
-        tbody.innerHTML = "";
 
         data.forEach(item => {
-            const tr = document.createElement("tr");
+            const tr = Array.from(tbody.rows).find(row => row.dataset.symbol === item.symbol);
+            if (!tr) {
+                return;
+            }
+
             const changeClass = item.change >= 0 ? "text-success" : "text-danger";
-            console.log("item name " + item.name);
-            tr.innerHTML = `
-                <td><a class="news-link" href="/chartjs/${item.symbol}">${item.name}</a></td>
-                <td>${item.price.toFixed(2)}</td>
-                <td class="${changeClass}">${item.change.toFixed(2)}%</td>
-                <td>${item.time}</td>
-            `;
-            tbody.appendChild(tr);
+            tr.querySelector(".favorite-price").textContent = item.price.toFixed(2);
+
+            const changeCell = tr.querySelector(".favorite-change");
+            changeCell.textContent = `${item.change.toFixed(2)}%`;
+            changeCell.className = `favorite-change ${changeClass}`;
+
+            tr.querySelector(".favorite-time").textContent = item.time;
         });
     } catch (err) {
         console.error("Error updating favorites:", err);
