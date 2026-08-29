@@ -6,9 +6,9 @@ def test_toggle_favorite_adds_symbol(client):
     Test that toggling a new symbol adds it to the session favorites.
     """
 
-    # session starts empty
+    # Anonymous favourites use a dedicated guest session key.
     with client.session_transaction() as sess:
-        sess["favorites"] = []
+        sess["guest_favorites"] = []
 
     response = client.post("/toggle_favorite/AAPL?name=Apple")
 
@@ -18,7 +18,7 @@ def test_toggle_favorite_adds_symbol(client):
 
     # Verify session contents
     with client.session_transaction() as sess:
-        assert sess["favorites"] == [{"symbol": "AAPL", "name": "Apple"}]
+        assert sess["guest_favorites"] == [{"symbol": "AAPL", "name": "Apple"}]
 
 
 def test_toggle_favorite_removes_symbol(client):
@@ -28,7 +28,7 @@ def test_toggle_favorite_removes_symbol(client):
 
     # Preload session with the symbol
     with client.session_transaction() as sess:
-        sess["favorites"] = [{"symbol": "AAPL", "name": "Apple"}]
+        sess["guest_favorites"] = [{"symbol": "AAPL", "name": "Apple"}]
 
     response = client.post("/toggle_favorite/AAPL")
 
@@ -38,7 +38,27 @@ def test_toggle_favorite_removes_symbol(client):
 
     # Verify removal
     with client.session_transaction() as sess:
-        assert sess["favorites"] == []
+        assert sess["guest_favorites"] == []
+
+
+def test_authenticated_favorites_are_isolated_by_user(client):
+    client.post("/register", data={"name": "alice", "email": "alice@gmail.com", "password": "pass123"})
+    client.post("/register", data={"name": "bob", "email": "bob@gmail.com", "password": "pass123"})
+
+    client.post("/login", data={"email": "alice@gmail.com", "password": "pass123"})
+    client.post("/toggle_favorite/NVDA?name=NVIDIA")
+    assert client.get("/get_favorites").get_json() == [{"symbol": "NVDA", "name": "NVIDIA"}]
+
+    client.get("/logout")
+    assert client.get("/get_favorites").get_json() == []
+
+    client.post("/login", data={"email": "bob@gmail.com", "password": "pass123"})
+    assert client.get("/get_favorites").get_json() == []
+
+    client.post("/toggle_favorite/MSFT?name=Microsoft")
+    client.get("/logout")
+    client.post("/login", data={"email": "alice@gmail.com", "password": "pass123"})
+    assert client.get("/get_favorites").get_json() == [{"symbol": "NVDA", "name": "NVIDIA"}]
 
 @patch("server.favs.requests.get")
 def test_search_ticker_success(mock_get, client):

@@ -1,5 +1,5 @@
 from flask import Blueprint
-from flask import request, render_template, redirect, url_for, flash
+from flask import request, render_template, redirect, url_for, flash, session
 from email_validator import validate_email, EmailNotValidError
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 
@@ -107,6 +107,7 @@ def login():
         # Find the user by email
         user = dbApi.validateUser(email, password)
         if user:
+            session.pop("favorites", None)
             login_user(user, remember=True)
             # Not used on target page
             # flash(f"Success: Logged in as {user.name}", "success")
@@ -124,6 +125,7 @@ def login():
 @login_required
 def logout():
     logout_user()
+    session.pop("favorites", None)
     flash("Success: You have been logged out", "success")
     return redirect(url_for('user.login'))
 

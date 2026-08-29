@@ -1,5 +1,8 @@
 import requests, hashlib
 from flask import request, jsonify, Blueprint, session
+from flask_login import current_user
+from misc.alchemy_db import Favorite
+from misc.extensions import db
 
 # refering to url from different module is url_for("news.news")
 fav_bp = Blueprint("favs", __name__)
@@ -168,17 +171,13 @@ def get_snapshot(favorites):
 
 @fav_bp.route("/get_favorites")
 def get_favorites():
-    favorites = session.get("favorites", [])
+    if current_user.is_authenticated:
+        return [
+            {"symbol": favorite.symbol, "name": favorite.name}
+            for favorite in Favorite.query.filter_by(user_id=current_user.id).order_by(Favorite.id)
+        ]
 
-    # convert old structure [symbol] to new [{symnol, name}]
-    if favorites and isinstance(favorites[0], str):
-        stocks = yf.Tickers(" ".join(favorites))
-        favorites.clear()
-        for symbol, ticker in stocks.tickers.items():
-            favorites.append({"symbol": symbol, 
-                              "name": ticker.info.get("shortName", "<NoName>")})
-
-    return favorites
+    return session.get("guest_favorites", [])
 
 
 def get_favorites_or_defaults():
@@ -210,17 +209,26 @@ def search_ttl_cache_ticker():
 @fav_bp.route("/toggle_favorite/<symbol>", methods=["POST"])
 def toggle_favorite(symbol):
     name = request.args.get("name", symbol)
-    favorites = get_favorites()
-    
-    existing = next((f for f in favorites if f["symbol"] == symbol), None)
-    if existing:
-        favorites = [f for f in favorites if f["symbol"] != symbol]
-        status = "removed"
+    if current_user.is_authenticated:
+        existing = Favorite.query.filter_by(user_id=current_user.id, symbol=symbol).first()
+        if existing:
+            db.session.delete(existing)
+            status = "removed"
+        else:
+            db.session.add(Favorite(user_id=current_user.id, symbol=symbol, name=name))
+            status = "added"
+        db.session.commit()
     else:
-        favorites.append({"symbol": symbol, "name": name})
-        status = "added"
+        favorites = get_favorites()
+        existing = next((f for f in favorites if f["symbol"] == symbol), None)
+        if existing:
+            favorites = [f for f in favorites if f["symbol"] != symbol]
+            status = "removed"
+        else:
+            favorites.append({"symbol": symbol, "name": name})
+            status = "added"
 
-    session["favorites"] = favorites
-    session.modified = True
+        session["guest_favorites"] = favorites
+        session.modified = True
 
     return jsonify({"status": status})

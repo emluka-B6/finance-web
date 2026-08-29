@@ -6,7 +6,7 @@ from server.news import parse_feed
 @patch("server.news.parse_general_feed", return_value=[])
 def test_news2_renders_favorite_placeholders(mock_general_feed, mock_company_feed, client):
     with client.session_transaction() as sess:
-        sess["favorites"] = [{"symbol": "NVDA", "name": "NVIDIA"}]
+        sess["guest_favorites"] = [{"symbol": "NVDA", "name": "NVIDIA"}]
 
     response = client.get("/news2")
 
@@ -14,6 +14,7 @@ def test_news2_renders_favorite_placeholders(mock_general_feed, mock_company_fee
     assert b'data-symbol="NVDA"' in response.data
     assert b">NVIDIA</a>" in response.data
     assert response.data.count("—".encode()) == 3
+    mock_company_feed.assert_called_once_with("NVDA")
 
 @patch("feedparser.parse")
 def test_parse_feed_sorts_by_date(mock_parse):

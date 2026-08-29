@@ -104,8 +104,8 @@ def news():
 
 @dashboard_bp.route("/news2")
 def news2():
-    tickers = ["AAPL", "MSFT", "GOOGL"]
     favorites = get_favorites_or_defaults()
+    tickers = [favorite["symbol"] for favorite in favorites]
     general_news = parse_general_feed(10)
     company_news = {
         ticker: parse_company_feed(ticker)

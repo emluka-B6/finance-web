@@ -21,6 +21,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(80), unique=True, nullable=False) # Add email field
     password = db.Column(db.String(120), nullable=False, default="")  # Add password field
     role = db.Column(db.String(20), nullable=False, default=Role.USER)  # Add role field
+    favorites = db.relationship("Favorite", backref="user", cascade="all, delete-orphan", lazy=True)
 
     # def __self__(self, _name, _email):
         # self.name = _name
@@ -42,6 +43,15 @@ class User(UserMixin, db.Model):
         return True  # Ensure the user is active
 
     
+class Favorite(db.Model):
+    __table_args__ = (db.UniqueConstraint("user_id", "symbol", name="uq_favorite_user_symbol"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    symbol = db.Column(db.String(20), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+
+
 class AlchemyDb():
     def getUsers(__self__):
         users = User.query.all()
