@@ -57,6 +57,57 @@ FLASK_ENV=development python -m server.app
 
 The development server listens at <http://127.0.0.1:5000>. On first launch, the application creates its SQLite tables automatically. Register an account at <http://127.0.0.1:5000/register>, then sign in at <http://127.0.0.1:5000/login>.
 
+## Updating an existing installation
+
+Pulling new application code does **not** apply database migrations automatically. Before starting a version that includes a new migration, stop the application and back up the database. For the default SQLite configuration, the database file is `server/instance/sqlite_alchemy.db`:
+
+```bash
+cp server/instance/sqlite_alchemy.db server/instance/sqlite_alchemy.db.backup
+```
+
+Apply all pending migrations from the `server` directory:
+
+```bash
+cd server
+source ../venv/bin/activate
+PYTHONPATH=".." flask --app app db upgrade
+```
+
+To confirm the installed migration version without changing the database, run:
+
+```bash
+PYTHONPATH=".." flask --app app db current
+```
+
+### Favourites upgrade
+
+The user-scoped favourites update adds a `favorite` table. Existing user accounts and their other database data are preserved. Favourites created by the old version were stored only in the browser session under one shared key, with no owner information, so they cannot be safely assigned to a particular user during migration. After upgrading, each user should sign in and add their own favourites again. Any old shared session value is discarded on the next login or logout to prevent it being shown to another user.
+
+## Testing an older revision safely
+
+Use the worktree helper to test another revision without changing the current checkout or its development database. The tool creates a sibling worktree and makes an isolated, SQLite-consistent copy of `server/instance/sqlite_alchemy.db`; database migrations and destructive tests can then be run safely in that copy.
+
+From the repository root:
+
+```bash
+python tools/create_test_worktree.py <revision> <worktree-name>
+```
+
+For example, to test the previous commit:
+
+```bash
+python tools/create_test_worktree.py HEAD~1 first_web_app-previous
+cd ../first_web_app-previous
+```
+
+When finished, return to the original repository root and remove the worktree and its copied database:
+
+```bash
+python tools/remove_test_worktree.py first_web_app-previous
+```
+
+The creation tool refuses to overwrite an existing directory. Add `--no-database-copy` when a database copy is not needed. The removal tool refuses to delete a dirty worktree; use `python tools/remove_test_worktree.py --force first_web_app-previous` only when its uncommitted changes can be discarded. Run either tool with `--help` for all options.
+
 ## Main routes
 
 | Route | Description |
