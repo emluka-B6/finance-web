@@ -58,6 +58,26 @@
             width: 80%;
             margin: 0.2rem auto;     /* center horizontally */
         }
+
+        .user-avatar {
+            align-items: center;
+            background-color: #0d6efd;
+            border-radius: 50%;
+            color: white;
+            display: inline-flex;
+            font-size: 0.9rem;
+            font-weight: 600;
+            height: 36px;
+            justify-content: center;
+            text-decoration: none;
+            width: 36px;
+        }
+
+        .user-avatar:hover,
+        .user-avatar:focus {
+            background-color: #0b5ed7;
+            color: white;
+        }
     </style>    
     <link rel="stylesheet" href="{{ url_for('static', filename='css/search.css')}}">
     <script>
@@ -142,7 +162,7 @@
                                 <a class="dropdown-item {% if request.endpoint == 'news.news2' %}active{% endif %}" href="{{ url_for('news.news2') }}">
                                     Global2
                                 </a>
-                            </li>                         
+                            </li>
                         </ul>
                     </li>
 
@@ -160,82 +180,82 @@
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'CDR.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='CDR.WA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='CDR.WA') }}">
                                     CD Project
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'PKN.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='PKN.WA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='PKN.WA') }}">
                                     PKN Orlen
                                 </a>
                             </li>                            
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'PKO.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='PKO.WA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='PKO.WA') }}">
                                     Bank PKO BP
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'PZU.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='PZU.WA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='PZU.WA') }}">
                                     PZU
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'MBK.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='MBK.WA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='MBK.WA') }}">
                                     mBank
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'PEO.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='PEO.WA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='PEO.WA') }}">
                                     Bank Pekao
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'KGH.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='KGH.WA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='KGH.WA') }}">
                                     KGHM Polska
                                 </a>
-                            </li>                            
+                            </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'LPP.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='LPP.WA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='LPP.WA') }}">
                                     LPP
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'PGE.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='PGE.WA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='PGE.WA') }}">
                                     PGE
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'DNP.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='DNP.WA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='DNP.WA') }}">
                                     Dino
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'ALR.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='ALR.WA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='ALR.WA') }}">
                                     Alior Bank
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'ALE.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='ALE.WA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='ALE.WA') }}">
                                     Allegro
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'KTY.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='KTY.WA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='KTY.WA') }}">
                                     Kęty
                                 </a>
-                            </li>                                                        
+                            </li>
                             <!-- 'KRU.WA', 'PCO.WA', 'OPL.WA', 'BDX.WA'] -->
                         </ul>
                     </li>
@@ -254,43 +274,43 @@
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'GOOGL' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='GOOGL') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='GOOGL') }}">
                                     Google
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'TSLA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='TSLA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='TSLA') }}">
                                     Tesla
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'META' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='META') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='META') }}">
                                     Meta
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'NVDA' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='NVDA') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='NVDA') }}">
                                     Nvidia
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'AMZN' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='AMZN') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='AMZN') }}">
                                     Amazon
                                 </a>
                             </li>                                                                                                                                            
                             <li>
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'MSFT' %}active{% endif %}"
-                                    href="{{ url_for('chart.chart', symbol='MSFT') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='MSFT') }}">
                                     Microsoft
                                 </a>
                             </li>
                             <li>                                
                                 <a class="dropdown-item {% if request.view_args.get('symbol') == 'AAPL' %}active{% endif %}" 
-                                    href="{{ url_for('chart.chart', symbol='AAPL') }}">
+                                    href="{{ url_for('chart.selected_chart', symbol='AAPL') }}">
                                     Apple
                                 </a>
                             </li>
@@ -305,7 +325,7 @@
                         <ul class="dropdown-menu" aria-labelledby="favoritesDropdown" id="favorites-list">
                             {% for fav in session.get('favorites', []) %}
                             <li>
-                                <a class="dropdown-item" href="{{ url_for('chart.chart', symbol=fav.symbol) }}">{{ fav.name }}</a>
+                                <a class="dropdown-item" href="{{ url_for('chart.selected_chart', symbol=fav.symbol) }}">{{ fav.name }}</a>
                             </li>
                             {% else %}
                             <li><span class="dropdown-item text-muted">No favorites</span></li>
@@ -339,6 +359,9 @@
                 </form>
                 
                 {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('user.settings') }}" class="user-avatar ms-3" aria-label="Open settings" title="Settings">
+                        {{ current_user.name[0] | upper }}
+                    </a>
                     <a href="{{ url_for('user.logout') }}" class="btn btn-danger ms-3">Logout</a>
                 {% else %}
                     <a href="{{ url_for('user.login') }}" class="btn btn-primary ms-3">Login</a>

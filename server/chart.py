@@ -1,6 +1,7 @@
-from flask import request, jsonify
+from flask import request, jsonify, redirect, url_for
 from flask import Blueprint
-from flask import render_template, session
+from flask import render_template
+from flask_login import current_user
 from .favs import get_favorites
 
 from .yfinance_imp import get_stock_ohlc_data, get_stock_ohlc_data_api, fetch_ohlc_data
@@ -9,13 +10,31 @@ from .yfinance_imp import get_stock_ohlc_data, get_stock_ohlc_data_api, fetch_oh
 # refering to url from different module is url_for("news.news")
 chart_bp = Blueprint("chart", __name__)
 
-@chart_bp.context_processor
+CHART_PROVIDERS = {
+    "chartjs": "chart",
+    "lightweight": "lightweight_chart",
+}
+DEFAULT_CHART_PROVIDER = "chartjs"
+
+@chart_bp.app_context_processor
 def inject_helpers():
     def is_favorite(symbol):
         favorites = get_favorites()
         return any(f.get("symbol") == symbol for f in favorites)
     
     return dict(is_favorite=is_favorite)
+
+
+@chart_bp.route("/chart/<symbol>")
+def selected_chart(symbol):
+    """Open a chart with the provider selected for this browser session."""
+    provider = (
+        current_user.chart_provider
+        if current_user.is_authenticated
+        else DEFAULT_CHART_PROVIDER
+    )
+    endpoint = CHART_PROVIDERS.get(provider, CHART_PROVIDERS[DEFAULT_CHART_PROVIDER])
+    return redirect(url_for(f"chart.{endpoint}", symbol=symbol))
 
 @chart_bp.route("/chartjs/<symbol>")
 def chart(symbol):

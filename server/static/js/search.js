@@ -17,7 +17,7 @@ function showTickers(resultArray) {
 
     console.log(" item.name " + item.name);
     li.onclick = () => {
-      window.location.href = `/chartjs/${item.symbol}`;
+      window.location.href = `/chart/${encodeURIComponent(item.symbol)}`;
     };
     tickersOutput.appendChild(li);
   });

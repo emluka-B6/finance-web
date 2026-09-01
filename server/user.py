@@ -3,7 +3,7 @@ from flask import request, render_template, redirect, url_for, flash, session
 from email_validator import validate_email, EmailNotValidError
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 
-from misc.extensions import ALREADY_ADDED, DB_ERROR
+from misc.extensions import ALREADY_ADDED, DB_ERROR, db
 from misc.alchemy_db import AlchemyDb, Role
 
 # refering to url from different module is url_for("user.add")
@@ -12,6 +12,8 @@ dbApi = AlchemyDb()
 
 login_manager = LoginManager()
 login_manager.login_view = 'user.login'
+
+CHART_PROVIDERS = {"chartjs", "lightweight"}
 
 
 @user_bp.route('/delete/<int:user_id>', methods=['POST'])
@@ -128,6 +130,23 @@ def logout():
     session.pop("favorites", None)
     flash("Success: You have been logged out", "success")
     return redirect(url_for('user.login'))
+
+
+@user_bp.route('/settings', methods=['GET', 'POST'])
+@login_required
+def settings():
+    if request.method == 'POST':
+        chart_provider = request.form.get('chart_provider')
+        if chart_provider not in CHART_PROVIDERS:
+            flash('Please select a valid chart provider.', 'error')
+            return redirect(url_for('user.settings'))
+
+        current_user.chart_provider = chart_provider
+        db.session.commit()
+        flash('Settings saved successfully.', 'success')
+        return redirect(url_for('user.settings'))
+
+    return render_template('settings.html')
 
 
 @user_bp.route('/', methods=['GET', 'POST'])

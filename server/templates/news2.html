@@ -55,7 +55,7 @@
                 <tbody id="favorites-body">
                   {% for favorite in favorites %}
                     <tr data-symbol="{{ favorite.symbol }}">
-                      <td><a class="news-link" href="/chartjs/{{ favorite.symbol }}">{{ favorite.name }}</a></td>
+                      <td><a class="news-link" href="{{ url_for('chart.selected_chart', symbol=favorite.symbol) }}">{{ favorite.name }}</a></td>
                       <td class="favorite-price" aria-label="Loading price">—</td>
                       <td class="favorite-change" aria-label="Loading change">—</td>
                       <td class="favorite-time" aria-label="Loading time">—</td>

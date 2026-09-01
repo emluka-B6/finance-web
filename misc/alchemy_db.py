@@ -21,6 +21,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(80), unique=True, nullable=False) # Add email field
     password = db.Column(db.String(120), nullable=False, default="")  # Add password field
     role = db.Column(db.String(20), nullable=False, default=Role.USER)  # Add role field
+    chart_provider = db.Column(db.String(20), nullable=False, default="chartjs")
     favorites = db.relationship("Favorite", backref="user", cascade="all, delete-orphan", lazy=True)
 
     # def __self__(self, _name, _email):
