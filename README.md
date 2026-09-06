@@ -130,6 +130,9 @@ The chart and favourites interfaces also use JSON endpoints such as `/get_ohlc`,
 | `SECRET_KEY` | Falls back to `dev_secret_key` if unset | Signs Flask sessions and flash messages. Always set a strong value outside local development. |
 | `FLASK_ENV` | Defaults to `development` | Selects the session backend. Development uses a SQLite-backed session store. |
 | `REDIS_URL` | Not required in development | When `FLASK_ENV=production`, enables Redis-backed server-side sessions. Example: `redis://localhost:6379/0`. |
+| `LLM_API_KEY` | Empty (falls back to the hardcoded WIG20 list) | API key for the LLM used to look up the current WIG20 constituents. |
+| `LLM_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible base URL. Use `https://api.deepseek.com/v1` (DeepSeek) or `https://dashscope.aliyuncs.com/compatible-mode/v1` (Qwen) to switch providers. |
+| `LLM_MODEL` | `gpt-4o-mini` | Model name for the LLM call (e.g. `deepseek-chat`, `qwen-plus`). |
 
 Application data is stored in SQLite. Local database, cache, and session files are intentionally ignored by Git.
 

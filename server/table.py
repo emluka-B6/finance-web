@@ -7,6 +7,8 @@ from flask import Blueprint, render_template
 import yfinance as yf
 import pandas as pd
 
+from .wig20 import get_wig20_tickers
+
 table_bp = Blueprint("table", __name__)
 
 @lru_cache(maxsize=128)
@@ -74,10 +76,8 @@ def get_stocks_day_data_opt(tickers):
 
 @table_bp.route('/wig20')
 def wig20():
-    wig20_tickers = ['CDR.WA', 'PKN.WA', 'PKO.WA', 'PZU.WA', 'MBK.WA',
-                     'SPL.WA', 'PEO.WA', 'KGH.WA', 'LPP.WA', 'PGE.WA',
-                     'ALR.WA', 'DNP.WA', 'ALE.WA', 'ZAB.WA', 'CCC.WA',
-                     'KTY.WA', 'KRU.WA', 'PCO.WA', 'OPL.WA', 'BDX.WA']
+    # Current constituents are queried (and cached) instead of hardcoded.
+    wig20_tickers = get_wig20_tickers()
     
     # data = get_stock_data('^WIG20')  # Ticker for WIG20
     # data = get_stock_data_alpha_vantage('WIG20')  # Ticker for WIG20

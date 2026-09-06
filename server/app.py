@@ -10,6 +10,7 @@ from .chart import chart_bp
 from .table import table_bp
 from .session import stats_bp, log_activity, clean_old_logs
 from .user import user_bp, login_manager
+from .wig20 import start_wig20_scheduler
 
 # FLASK_ENV=production REDIS_URL=redis://localhost:6379/0 python app.py
 # FLASK_ENV=development python app.py
@@ -101,5 +102,10 @@ if __name__ == '__main__':
             session_engine = db.engines['sessions']
             db.metadata.create_all(bind=session_engine)
             clean_old_logs(30)
+
+    # Start the WIG20 scheduler only in the real server process (not the debug
+    # reloader's parent process, which would otherwise start a duplicate thread).
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+        start_wig20_scheduler()
 
     app.run(debug=True)
