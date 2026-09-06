@@ -1,6 +1,7 @@
 from flask import Flask, request
 from flask_migrate import Migrate
 from flask_session import Session
+from dotenv import load_dotenv
 import os
 
 from misc.extensions import db
@@ -11,6 +12,8 @@ from .table import table_bp
 from .session import stats_bp, log_activity, clean_old_logs
 from .user import user_bp, login_manager
 from .wig20 import start_wig20_scheduler
+
+load_dotenv()
 
 # FLASK_ENV=production REDIS_URL=redis://localhost:6379/0 python app.py
 # FLASK_ENV=development python app.py
@@ -106,6 +109,7 @@ if __name__ == '__main__':
     # Start the WIG20 scheduler only in the real server process (not the debug
     # reloader's parent process, which would otherwise start a duplicate thread).
     if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+        print("Starting WIG20 scheduler")
         start_wig20_scheduler()
 
     app.run(debug=True)
