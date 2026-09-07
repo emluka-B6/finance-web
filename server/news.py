@@ -3,6 +3,7 @@ import yfinance as yf
 from flask import Blueprint, render_template
 from datetime import datetime
 from .favs import get_favorites_or_defaults
+from .table import get_company_name
 
 # refering to url from different module is url_for("news.news")
 dashboard_bp = Blueprint("news", __name__)
@@ -111,10 +112,15 @@ def news2():
         ticker: parse_company_feed(ticker)
         for ticker in tickers
     }
-    
+    company_names = {
+        ticker: get_company_name(ticker)
+        for ticker in tickers
+    }
+
     return render_template(
         "news2.html",
         general_news=general_news,
         company_news=company_news,
+        company_names=company_names,
         favorites=favorites
     )

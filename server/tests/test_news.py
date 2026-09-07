@@ -2,9 +2,10 @@ from unittest.mock import patch, MagicMock
 from server.news import parse_feed
 
 
+@patch("server.news.get_company_name", return_value="NVIDIA Corporation")
 @patch("server.news.parse_company_feed", return_value=[])
 @patch("server.news.parse_general_feed", return_value=[])
-def test_news2_renders_favorite_placeholders(mock_general_feed, mock_company_feed, client):
+def test_news2_renders_favorite_placeholders(mock_general_feed, mock_company_feed, mock_get_company_name, client):
     with client.session_transaction() as sess:
         sess["guest_favorites"] = [{"symbol": "NVDA", "name": "NVIDIA"}]
 
