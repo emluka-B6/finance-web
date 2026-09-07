@@ -2,6 +2,8 @@
 # Routes for stock indexes
 from functools import lru_cache
 
+import json
+import os
 import time
 from flask import Blueprint, render_template
 import yfinance as yf
@@ -11,12 +13,65 @@ from .wig20 import get_wig20_tickers
 
 table_bp = Blueprint("table", __name__)
 
-@lru_cache(maxsize=128)
-def get_company_name(ticker):
+COMPANY_NAMES_CACHE_FILE = os.environ.get(
+    "COMPANY_NAMES_CACHE_FILE", "cache/company_names.json"
+)
+# Company names change very rarely; refresh at most once a week.
+COMPANY_NAMES_TTL = 7 * 24 * 60 * 60
+
+
+def _load_company_names():
     try:
-        return yf.Ticker(ticker).info.get('longName', ticker)
+        with open(COMPANY_NAMES_CACHE_FILE) as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_company_names(cache):
+    try:
+        os.makedirs(os.path.dirname(COMPANY_NAMES_CACHE_FILE) or ".", exist_ok=True)
+        with open(COMPANY_NAMES_CACHE_FILE, "w") as f:
+            json.dump(cache, f)
+    except OSError as e:
+        print(f"[company_names] could not write cache: {e}")
+
+
+@lru_cache(maxsize=256)
+def get_company_info(ticker):
+    """Return (short_name, long_name) for a ticker, falling back to the ticker.
+
+    Names are fetched once from Yahoo Finance and then persisted on disk (with
+    a TTL) plus cached in memory per process, so the menu/table don't trigger a
+    network round-trip on every request.
+    """
+    cache = _load_company_names()
+    entry = cache.get(ticker)
+    if entry and (time.time() - float(entry.get("updated_at", 0) or 0)) < COMPANY_NAMES_TTL:
+        return entry.get("short", ticker), entry.get("long", ticker)
+
+    try:
+        info = yf.Ticker(ticker).info
+        short = info.get("shortName") or ticker
+        long = info.get("longName") or short
     except Exception:
-        return ticker
+        # Don't cache failures so a transient error can be retried later.
+        return ticker, ticker
+
+    cache[ticker] = {"short": short, "long": long, "updated_at": time.time()}
+    _save_company_names(cache)
+    return short, long
+
+
+def get_company_short_name(ticker):
+    """Human-friendly short name (e.g. "Orlen") used in the navigation menu."""
+    return get_company_info(ticker)[0]
+
+
+def get_company_name(ticker):
+    """Full company name (e.g. "Orlen S.A.") used in tables."""
+    return get_company_info(ticker)[1]
     
 
 def get_stocks_day_data_opt(tickers):
@@ -54,7 +109,7 @@ def get_stocks_day_data_opt(tickers):
             percent_change = (change / prev_close) * 100 if prev_close else 0
 
             results[ticker] = {
-                'name': ticker,
+                'name': get_company_name(ticker),
                 'current_price': round(last_close, 2),
                 'change': round(change, 2),
                 'percent_change': round(percent_change, 2),
@@ -65,7 +120,7 @@ def get_stocks_day_data_opt(tickers):
 
         except Exception as e:
             results[ticker] = {
-                'name': ticker,
+                'name': get_company_name(ticker),
                 'current_price': 0,
                 'change': 0,
                 'percent_change': 0,

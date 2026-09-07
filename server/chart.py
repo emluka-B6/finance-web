@@ -5,6 +5,7 @@ from flask_login import current_user
 from .favs import get_favorites
 
 from .yfinance_imp import get_stock_ohlc_data, get_stock_ohlc_data_api, fetch_ohlc_data
+from .table import get_company_name
 
 
 # refering to url from different module is url_for("news.news")
@@ -39,7 +40,8 @@ def selected_chart(symbol):
 @chart_bp.route("/chartjs/<symbol>")
 def chart(symbol):
     interval = "1d"  # default interval for initial load
-    ohlc, name = get_stock_ohlc_data(symbol.upper(), interval)
+    ohlc, _ = get_stock_ohlc_data(symbol.upper(), interval)
+    name = get_company_name(symbol.upper())
 
     return render_template(
         "chartjs.html",
@@ -54,7 +56,8 @@ def chart(symbol):
 def lightweight_chart(symbol):
     """Render chart using Lightweight Charts library."""
     interval = "1d"  # default interval for initial load
-    ohlc, name = get_stock_ohlc_data(symbol.upper(), interval)
+    ohlc, _ = get_stock_ohlc_data(symbol.upper(), interval)
+    name = get_company_name(symbol.upper())
 
     return render_template(
         "lightweightchart.html",

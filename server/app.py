@@ -8,10 +8,10 @@ from misc.extensions import db
 from .favs import fav_bp
 from .news import dashboard_bp
 from .chart import chart_bp
-from .table import table_bp
+from .table import table_bp, get_company_short_name
 from .session import stats_bp, log_activity, clean_old_logs
 from .user import user_bp, login_manager
-from .wig20 import start_wig20_scheduler
+from .wig20 import get_wig20_tickers, start_wig20_scheduler
 
 load_dotenv()
 
@@ -43,6 +43,19 @@ def create_app(config=None):
     app.register_blueprint(stats_bp)
 
     login_manager.init_app(app)
+
+    @app.context_processor
+    def inject_wig20_tickers():
+        # Expose the current WIG20 constituents to all templates (e.g. the
+        # Poland dropdown menu in base.html). The ticker list is cached on
+        # disk and refreshed at most once a day; each entry also carries a
+        # human-friendly short name resolved from Yahoo Finance.
+        tickers = get_wig20_tickers()
+        return {
+            "wig20_tickers": [
+                {"symbol": t, "name": get_company_short_name(t)} for t in tickers
+            ]
+        }
 
     return app
 

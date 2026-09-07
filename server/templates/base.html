@@ -178,85 +178,14 @@
                                 </a>
                             </li>
                             <li><hr class="dropdown-divider"></li>
+                            {% for company in wig20_tickers %}
                             <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'CDR.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol='CDR.WA') }}">
-                                    CD Project
+                                <a class="dropdown-item {% if request.view_args.get('symbol') == company.symbol %}active{% endif %}"
+                                    href="{{ url_for('chart.selected_chart', symbol=company.symbol) }}">
+                                    {{ company.name }}
                                 </a>
                             </li>
-                            <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'PKN.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol='PKN.WA') }}">
-                                    PKN Orlen
-                                </a>
-                            </li>                            
-                            <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'PKO.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol='PKO.WA') }}">
-                                    Bank PKO BP
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'PZU.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol='PZU.WA') }}">
-                                    PZU
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'MBK.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol='MBK.WA') }}">
-                                    mBank
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'PEO.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol='PEO.WA') }}">
-                                    Bank Pekao
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'KGH.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol='KGH.WA') }}">
-                                    KGHM Polska
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'LPP.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol='LPP.WA') }}">
-                                    LPP
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'PGE.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol='PGE.WA') }}">
-                                    PGE
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'DNP.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol='DNP.WA') }}">
-                                    Dino
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'ALR.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol='ALR.WA') }}">
-                                    Alior Bank
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'ALE.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol='ALE.WA') }}">
-                                    Allegro
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == 'KTY.WA' %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol='KTY.WA') }}">
-                                    Kęty
-                                </a>
-                            </li>
-                            <!-- 'KRU.WA', 'PCO.WA', 'OPL.WA', 'BDX.WA'] -->
+                            {% endfor %}
                         </ul>
                     </li>
 
