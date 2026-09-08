@@ -55,8 +55,27 @@
             background-color: rgba(255, 255, 255, 0.8); /* same tone as inactive text */
             height: 1px;
             border: none;
-            width: 80%;
-            margin: 0.2rem auto;     /* center horizontally */
+            width: auto;
+            /* Fixed side gap so the divider looks identical in every menu,
+               regardless of menu width (e.g. the two-column Poland menu). */
+            margin: 0.2rem 0.625rem;
+        }
+
+        /* Two-column layout used by the Poland dropdown */
+        .dropdown-columns-wrapper {
+            display: flex;
+            flex-wrap: nowrap;
+        }
+
+        .dropdown-column {
+            flex: auto;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .dropdown-column .dropdown-item {
+            white-space: nowrap;
         }
 
         .user-avatar {
@@ -178,14 +197,28 @@
                                 </a>
                             </li>
                             <li><hr class="dropdown-divider"></li>
-                            {% for company in wig20_tickers %}
-                            <li>
-                                <a class="dropdown-item {% if request.view_args.get('symbol') == company.symbol %}active{% endif %}"
-                                    href="{{ url_for('chart.selected_chart', symbol=company.symbol) }}">
-                                    {{ company.name }}
-                                </a>
+                            <li class="dropdown-columns-wrapper">
+                                <ul class="dropdown-column">
+                                    {% for company in wig20_tickers[:10] %}
+                                    <li>
+                                        <a class="dropdown-item {% if request.view_args.get('symbol') == company.symbol %}active{% endif %}"
+                                            href="{{ url_for('chart.selected_chart', symbol=company.symbol) }}">
+                                            {{ company.name }}
+                                        </a>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                                <ul class="dropdown-column">
+                                    {% for company in wig20_tickers[10:] %}
+                                    <li>
+                                        <a class="dropdown-item {% if request.view_args.get('symbol') == company.symbol %}active{% endif %}"
+                                            href="{{ url_for('chart.selected_chart', symbol=company.symbol) }}">
+                                            {{ company.name }}
+                                        </a>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
                             </li>
-                            {% endfor %}
                         </ul>
                     </li>
 
