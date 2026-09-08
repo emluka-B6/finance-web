@@ -135,6 +135,7 @@ The chart and favourites interfaces also use JSON endpoints such as `/get_ohlc`,
 | `LLM_MODEL` | `gpt-4o-mini` | Model name for the LLM call (e.g. `deepseek-chat`, `qwen-plus`). |
 | `LLM_USE_WEB_SEARCH` | `1` | When enabled, grounds the WIG20 lookup in live web results via the OpenAI Responses API web-search tool (OpenAI endpoint only; other providers fall back to a plain call). Set to `0` to disable. |
 | `WIG20_DIAGNOSTICS_LOG` | `cache/wig20_diagnostics.jsonl` | JSONL file where each lookup's status (model, source, visited URLs, JSON errors, repeated tickers, count, format issues) is appended for later statistics. |
+| `WIG20_REFRESH_ON_START` | `0` | When set to `1`/`true`, the scheduler performs an immediate warm-up refresh on startup. Disabled by default so server restarts during development don't trigger an LLM call. |
 
 Application data is stored in SQLite. Local database, cache, and session files are intentionally ignored by Git.
 

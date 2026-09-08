@@ -20,6 +20,9 @@ switched without code changes:
                   via the OpenAI Responses API web search tool. Defaults to
                   enabled; it only applies to the OpenAI endpoint and falls
                   back to a plain chat call otherwise.
+    WIG20_REFRESH_ON_START  "1"/"true" to perform an immediate warm-up refresh
+                  when the scheduler starts. Defaults to disabled so server
+                  restarts during development do not trigger an LLM call.
 """
 import json
 import os
@@ -43,6 +46,10 @@ LLM_API_KEY = os.environ.get("LLM_API_KEY", os.environ.get("OPENAI_API_KEY", "")
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 LLM_USE_WEB_SEARCH = os.environ.get("LLM_USE_WEB_SEARCH", "1").lower() in ("1", "true", "yes")
+# When enabled, the scheduler performs an immediate warm-up refresh on startup.
+# Disabled by default so a server restart (common during development) does not
+# trigger an LLM call; set it to "1"/"true" when iterating on this area.
+WIG20_REFRESH_ON_START = os.environ.get("WIG20_REFRESH_ON_START", "0").lower() in ("1", "true", "yes")
 WIG20_CACHE_FILE = os.environ.get("WIG20_CACHE_FILE", "cache/wig20_constituents.json")
 DIAGNOSTICS_LOG_FILE = os.environ.get("WIG20_DIAGNOSTICS_LOG", "cache/wig20_diagnostics.jsonl")
 
@@ -476,15 +483,20 @@ def start_wig20_scheduler():
     Start a daemon thread that refreshes WIG20 constituents daily at midnight.
 
     Also performs an immediate best-effort refresh so the cache is warm on
-    first launch without blocking any request.
+    first launch without blocking any request. That warm-up refresh is opt-in
+    via the WIG20_REFRESH_ON_START environment variable; it is disabled by
+    default so that server restarts during development do not trigger an LLM
+    call. Requests still populate the cache lazily via get_wig20_tickers().
     """
     def _run():
-        # Initial warm-up refresh (best-effort, non-fatal).
-        try:
-            with _refresh_lock:
-                refresh_wig20_tickers()
-        except Exception as e:
-            print(f"[wig20] initial refresh failed: {e}")
+        # Initial warm-up refresh (best-effort, non-fatal). Only performed when
+        # explicitly enabled so routine development restarts stay cheap.
+        if WIG20_REFRESH_ON_START:
+            try:
+                with _refresh_lock:
+                    refresh_wig20_tickers()
+            except Exception as e:
+                print(f"[wig20] initial refresh failed: {e}")
 
         while True:
             time.sleep(_seconds_until_next_midnight())
