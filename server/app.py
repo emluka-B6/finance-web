@@ -4,6 +4,10 @@ from flask_session import Session
 from dotenv import load_dotenv
 import os
 
+# Load .env into os.environ BEFORE importing any module that reads environment
+# variables at import time (e.g. wig20.py binds LLM_API_KEY at module level).
+load_dotenv()
+
 from misc.extensions import db
 from .favs import fav_bp
 from .news import dashboard_bp
@@ -12,8 +16,6 @@ from .table import table_bp, get_company_short_name
 from .session import stats_bp, log_activity, clean_old_logs
 from .user import user_bp, login_manager
 from .wig20 import get_wig20_tickers, start_wig20_scheduler
-
-load_dotenv()
 
 # FLASK_ENV=production REDIS_URL=redis://localhost:6379/0 python app.py
 # FLASK_ENV=development python app.py
