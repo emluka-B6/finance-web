@@ -491,6 +491,7 @@ def start_wig20_scheduler():
     def _run():
         # Initial warm-up refresh (best-effort, non-fatal). Only performed when
         # explicitly enabled so routine development restarts stay cheap.
+        print(f"[wig20] scheduler thread started (refresh on start: {WIG20_REFRESH_ON_START})")
         if WIG20_REFRESH_ON_START:
             try:
                 with _refresh_lock:
@@ -499,7 +500,9 @@ def start_wig20_scheduler():
                 print(f"[wig20] initial refresh failed: {e}")
 
         while True:
-            time.sleep(_seconds_until_next_midnight())
+            seconds = _seconds_until_next_midnight()
+            time.sleep(seconds)
+            print(f"[wig20] refreshing WIG20 tickers at {datetime.now().isoformat()} wait {seconds:.1f}s")
             try:
                 with _refresh_lock:
                     refresh_wig20_tickers()

@@ -53,6 +53,7 @@ def create_app(config=None):
         # disk and refreshed at most once a day; each entry also carries a
         # human-friendly short name resolved from Yahoo Finance.
         tickers = get_wig20_tickers()
+        print(f"[inject_wig20_tickers] WIG20 tickers: {tickers}")
         return {
             "wig20_tickers": [
                 {"symbol": t, "name": get_company_short_name(t)} for t in tickers
@@ -108,8 +109,6 @@ def log_user_activity():
         return
     log_activity(request.path, request.method)
 
-
-print(f'Session type: {app_config["SESSION_TYPE"]}, env {ENV}')
 
 if __name__ == '__main__':
     with app.app_context():

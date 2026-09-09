@@ -5,6 +5,7 @@ from functools import lru_cache
 import json
 import os
 import time
+from datetime import datetime
 from flask import Blueprint, render_template
 import yfinance as yf
 import pandas as pd
@@ -74,49 +75,76 @@ def get_company_name(ticker):
     return get_company_info(ticker)[1]
     
 
+def _to_float(value):
+    """Return ``value`` as a float, or 0 for None/NaN (missing quote fields)."""
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return 0.0 if pd.isna(value) else value
+
+
 def get_stocks_day_data_opt(tickers):
     """
-    Fetch latest daily data for multiple tickers efficiently.
+    Fetch current quote data for multiple tickers efficiently.
+
     Returns a dictionary of {ticker: {price, change, percent_change, name}}.
+
+    Uses Yahoo's live quote (the same source as the Favorites snapshot) instead
+    of recomputing the change from historical daily OHLC. The historical
+    ``yf.download`` path returned a NaN close for exchange holidays/delayed data,
+    which made change/percent_change render as "nan" and disagree with the
+    Favorites table.
     """
 
     start = time.perf_counter()
-  
-    # Batch download (1 call for all tickers)
-    hist = yf.download(tickers=tickers, period="2d", interval="1d", 
-                       group_by='ticker', progress=False, threads=True)
-    
-    end = time.perf_counter()
-    print(f"New method: {end - start:.2f} seconds")
-    
+
+    stocks = yf.Tickers(" ".join(tickers))
+
     results = {}
     data_date = None
 
     for ticker in tickers:
         try:
-            if isinstance(hist.columns, pd.MultiIndex):
-                df = hist[ticker]
-            else:
-                df = hist
+            t = stocks.tickers.get(ticker)
+            if t is None:
+                t = yf.Ticker(ticker)
 
-            if len(df) < 2:
-                raise ValueError("Not enough data")
+            # 1) fast_info (batched quote): lastPrice + previousClose
+            price = change = percent_change = None
+            try:
+                fast = t.fast_info
+                last = fast["lastPrice"]
+                prev = fast["previousClose"]
+                if last is not None and prev and not pd.isna(last) and not pd.isna(prev):
+                    price = last
+                    change = last - prev
+                    percent_change = (change / prev) * 100
+            except Exception:
+                price = None
 
-            prev_close = df['Close'].iloc[-2]
-            last_close = df['Close'].iloc[-1]
+            # 2) .info fallback: regularMarketChange / regularMarketChangePercent
+            if not price or pd.isna(price):
+                try:
+                    info = t.info
+                    price = info.get("regularMarketPrice") or info.get("currentPrice")
+                    change = info.get("regularMarketChange")
+                    percent_change = info.get("regularMarketChangePercent")
+                except Exception:
+                    price = None
 
-            change = last_close - prev_close
-            percent_change = (change / prev_close) * 100 if prev_close else 0
+            if not price or pd.isna(price):
+                raise ValueError("No price data")
 
             results[ticker] = {
                 'name': get_company_name(ticker),
-                'current_price': round(last_close, 2),
-                'change': round(change, 2),
-                'percent_change': round(percent_change, 2),
+                'current_price': round(_to_float(price), 2),
+                'change': round(_to_float(change), 2),
+                'percent_change': round(_to_float(percent_change), 2),
             }
 
             if data_date is None:
-                data_date = df.index[-1].strftime("%B %d, %Y")
+                data_date = datetime.now().strftime("%B %d, %Y")
 
         except Exception as e:
             results[ticker] = {
@@ -126,6 +154,9 @@ def get_stocks_day_data_opt(tickers):
                 'percent_change': 0,
                 'error': str(e)
             }
+
+    end = time.perf_counter()
+    print(f"New method: {end - start:.2f} seconds")
 
     return results, data_date
 
