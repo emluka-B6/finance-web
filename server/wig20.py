@@ -21,8 +21,10 @@ switched without code changes:
                   enabled; it only applies to the OpenAI endpoint and falls
                   back to a plain chat call otherwise.
     WIG20_REFRESH_ON_START  "1"/"true" to perform an immediate warm-up refresh
-                  when the scheduler starts. Defaults to disabled so server
-                  restarts during development do not trigger an LLM call.
+                  when the scheduler starts. The scheduler also refreshes on
+                  start if the cache is missing or stale (last refreshed on an
+                  earlier day). Defaults to disabled so server restarts during
+                  development do not trigger an LLM call.
 """
 import json
 import os
@@ -48,13 +50,11 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 LLM_USE_WEB_SEARCH = os.environ.get("LLM_USE_WEB_SEARCH", "1").lower() in ("1", "true", "yes")
 # When enabled, the scheduler performs an immediate warm-up refresh on startup.
 # Disabled by default so a server restart (common during development) does not
-# trigger an LLM call; set it to "1"/"true" when iterating on this area.
+# trigger an LLM call; set it to "1"/"true" when iterating on this area. Even
+# when disabled, the scheduler still refreshes if the cache is missing/stale.
 WIG20_REFRESH_ON_START = os.environ.get("WIG20_REFRESH_ON_START", "0").lower() in ("1", "true", "yes")
 WIG20_CACHE_FILE = os.environ.get("WIG20_CACHE_FILE", "cache/wig20_constituents.json")
 DIAGNOSTICS_LOG_FILE = os.environ.get("WIG20_DIAGNOSTICS_LOG", "cache/wig20_diagnostics.jsonl")
-
-# Re-query at most once per day unless forced.
-MAX_CACHE_AGE_SECONDS = 24 * 60 * 60
 
 _refresh_lock = threading.Lock()
 
@@ -428,45 +428,28 @@ def refresh_wig20_tickers():
     return normalized
 
 
-def _get_fresh_cached():
-    """Return cached tickers if still within the freshness window, else None."""
+def _cache_is_stale():
+    """Return True if the cache is missing/empty or was refreshed before today."""
     cached = _load_cache()
-    if not cached:
-        return None
-    tickers = cached.get("tickers")
-    if not tickers:
-        return None
-    age = time.time() - float(cached.get("updated_at", 0) or 0)
-    return tickers if age < MAX_CACHE_AGE_SECONDS else None
+    if not cached or not cached.get("tickers"):
+        return True
+    updated_at = float(cached.get("updated_at", 0) or 0)
+    last_midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    return updated_at < last_midnight.timestamp()
 
 
-def get_wig20_tickers(force_refresh=False):
+def get_wig20_tickers():
     """
     Return the current WIG20 ticker list (thread-safe).
 
-    Uses the on-disk cache when fresh; otherwise re-queries the LLM. Falls back
-    to the cached list, and finally the hardcoded list, if everything fails.
+    Reads the on-disk cache and falls back to the hardcoded last-known list if
+    the cache is missing or empty. Refreshing is handled by the daily scheduler
+    (see start_wig20_scheduler), not on the request path.
     """
-    if not force_refresh:
-        tickers = _get_fresh_cached()
-        if tickers:
-            return tickers
-
-    with _refresh_lock:
-        # Re-check the cache in case another thread refreshed while we waited.
-        if not force_refresh:
-            tickers = _get_fresh_cached()
-            if tickers:
-                return tickers
-
-        try:
-            return refresh_wig20_tickers()
-        except Exception as e:
-            print(f"[wig20] refresh failed ({e}); using fallback list")
-            cached = _load_cache()
-            if cached and cached.get("tickers"):
-                return cached["tickers"]
-            return list(DEFAULT_WIG20_TICKERS)
+    cached = _load_cache()
+    if cached and cached.get("tickers"):
+        return cached["tickers"]
+    return list(DEFAULT_WIG20_TICKERS)
 
 
 def _seconds_until_next_midnight():
@@ -483,16 +466,17 @@ def start_wig20_scheduler():
     Start a daemon thread that refreshes WIG20 constituents daily at midnight.
 
     Also performs an immediate best-effort refresh so the cache is warm on
-    first launch without blocking any request. That warm-up refresh is opt-in
-    via the WIG20_REFRESH_ON_START environment variable; it is disabled by
-    default so that server restarts during development do not trigger an LLM
-    call. Requests still populate the cache lazily via get_wig20_tickers().
+    first launch without blocking any request. That warm-up refresh runs when
+    WIG20_REFRESH_ON_START is enabled, or when the cache is missing/stale (for
+    example after the process was down over the last midnight). Disabled by
+    default so that server restarts during development don't trigger an LLM
+    call unless the cache is actually missing or from an earlier day.
     """
     def _run():
-        # Initial warm-up refresh (best-effort, non-fatal). Only performed when
-        # explicitly enabled so routine development restarts stay cheap.
+        # Initial warm-up refresh (best-effort, non-fatal). Runs when explicitly
+        # enabled or when the cache is missing/stale.
         print(f"[wig20] scheduler thread started (refresh on start: {WIG20_REFRESH_ON_START})")
-        if WIG20_REFRESH_ON_START:
+        if WIG20_REFRESH_ON_START or _cache_is_stale():
             try:
                 with _refresh_lock:
                     refresh_wig20_tickers()

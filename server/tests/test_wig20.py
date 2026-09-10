@@ -33,14 +33,28 @@ def test_get_wig20_tickers_uses_cache(tmp_path, monkeypatch):
     assert wig20.get_wig20_tickers() == tickers
 
 
-def test_get_wig20_tickers_falls_back_on_failure(tmp_path, monkeypatch):
+def test_get_wig20_tickers_falls_back_to_default_when_no_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(wig20, "WIG20_CACHE_FILE", str(tmp_path / "cache.json"))
+    assert wig20.get_wig20_tickers() == wig20.DEFAULT_WIG20_TICKERS
 
-    def boom():
-        raise RuntimeError("no key")
 
-    monkeypatch.setattr(wig20, "query_wig20_via_llm", boom)
-    assert wig20.get_wig20_tickers(force_refresh=True) == wig20.DEFAULT_WIG20_TICKERS
+def test_cache_is_stale_when_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(wig20, "WIG20_CACHE_FILE", str(tmp_path / "cache.json"))
+    assert wig20._cache_is_stale() is True
+
+
+def test_cache_is_stale_when_updated_on_an_earlier_day(tmp_path, monkeypatch):
+    monkeypatch.setattr(wig20, "WIG20_CACHE_FILE", str(tmp_path / "cache.json"))
+    with open(tmp_path / "cache.json", "w") as f:
+        json.dump({"tickers": ["AAA.WA"], "updated_at": time.time() - 2 * 24 * 3600}, f)
+    assert wig20._cache_is_stale() is True
+
+
+def test_cache_is_not_stale_when_updated_today(tmp_path, monkeypatch):
+    monkeypatch.setattr(wig20, "WIG20_CACHE_FILE", str(tmp_path / "cache.json"))
+    with open(tmp_path / "cache.json", "w") as f:
+        json.dump({"tickers": ["AAA.WA"], "updated_at": time.time()}, f)
+    assert wig20._cache_is_stale() is False
 
 
 def test_normalize_tickers_fixes_orlen_alias():
