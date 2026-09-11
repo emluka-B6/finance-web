@@ -63,7 +63,8 @@ class Wig20Diagnostics:
     """Collects status/diagnostics from a single WIG20 lookup.
 
     The same structure is printed to the log, stored in the cache on success,
-    and appended to a JSONL file, so per-model statistics can be built later.
+    and appended to a pretty-printed JSON log file, so per-model statistics can
+    be built later.
     """
 
     def __init__(self, model):
@@ -126,11 +127,16 @@ class Wig20Diagnostics:
 
 
 def _log_diagnostics(diag):
-    """Append one diagnostics record as a JSON line for later statistics."""
+    """Append one diagnostics record as pretty-printed JSON to the log file.
+
+    Each record is written with indentation and newlines for human readability,
+    separated from the next by a blank line. The file is append-only and is
+    intended for manual inspection and later statistics.
+    """
     try:
         os.makedirs(os.path.dirname(DIAGNOSTICS_LOG_FILE) or ".", exist_ok=True)
         with open(DIAGNOSTICS_LOG_FILE, "a") as f:
-            f.write(json.dumps(diag.to_dict()) + "\n")
+            f.write(json.dumps(diag.to_dict(), indent=2) + "\n\n")
     except OSError as e:
         print(f"[wig20] could not write diagnostics log: {e}")
 
@@ -147,7 +153,8 @@ def _load_cache():
 def _save_cache(payload):
     os.makedirs(os.path.dirname(WIG20_CACHE_FILE) or ".", exist_ok=True)
     with open(WIG20_CACHE_FILE, "w") as f:
-        json.dump(payload, f)
+        json.dump(payload, f, indent=2)
+        f.write("\n")
 
 
 def _parse_tickers(content):
@@ -250,6 +257,21 @@ _PROMPT = (
 )
 
 
+def _http_error(resp):
+    """Build a descriptive error string including the response body.
+
+    OpenAI-compatible APIs return a JSON body with an "error" object that
+    explains why a request failed (e.g. unsupported model, bad parameter),
+    which `requests`' HTTPError message omits. Including it makes 400-class
+    errors diagnosable instead of a bare "Bad Request".
+    """
+    try:
+        body = resp.text
+    except Exception:
+        body = "<no response body>"
+    return f"{resp.status_code} {resp.reason} for {resp.url}\nResponse body: {body}"
+
+
 def _query_chat(prompt):
     """Plain chat-completions call (no web search)."""
     url = f"{LLM_BASE_URL.rstrip('/')}/chat/completions"
@@ -262,11 +284,11 @@ def _query_chat(prompt):
         json={
             "model": LLM_MODEL,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0,
         },
         timeout=30,
     )
-    resp.raise_for_status()
+    if not resp.ok:
+        raise RuntimeError(_http_error(resp))
     content = resp.json()["choices"][0]["message"]["content"]
     return content
 
@@ -316,9 +338,10 @@ def _query_with_web_search(prompt):
                 "web_search_call.action.sources"
             ],
         },
-        timeout=60,
+        timeout=240,
     )
-    resp.raise_for_status()
+    if not resp.ok:
+        raise RuntimeError(_http_error(resp))
     data = resp.json()
     urls = _extract_urls(data)
     content = _extract_response_text(data)
