@@ -67,3 +67,75 @@ def test_normalize_tickers_adds_suffix_and_dedupes():
 
 def test_normalize_tickers_drops_invalid():
     assert wig20._normalize_tickers(["ABCDEF", "ab"]) == []
+
+
+def _responses_payload():
+    """Minimal OpenAI Responses API payload exercising both URL sources."""
+    return {
+        "output_text": '["PKO.WA"]',
+        "output": [
+            {
+                "type": "web_search_call",
+                "action": {
+                    "sources": [
+                        {"url": "https://www.gpw.pl/a", "title": "GPW A",
+                         "hostname": "www.gpw.pl"},
+                        {"url": "https://www.gpw.pl/b", "title": "GPW B",
+                         "hostname": "www.gpw.pl"},
+                        {"url": "https://www.reddit.com/r/x", "title": "Reddit",
+                         "hostname": "www.reddit.com"},
+                        {"url": "https://stooq.pl", "title": "Stooq", "hostname": "stooq.pl"},
+                    ]
+                },
+            },
+            {
+                "type": "message",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": "The answer",
+                        "annotations": [
+                            {"type": "url_citation", "url": "https://www.gpw.pl/a",
+                             "title": "GPW A", "hostname": "www.gpw.pl"},
+                        ],
+                    }
+                ],
+            },
+        ],
+    }
+
+
+def test_extract_urls_splits_cited_and_searched():
+    cited, searched = wig20._extract_urls(_responses_payload())
+    assert [e["url"] for e in cited] == ["https://www.gpw.pl/a"]
+    assert [e["url"] for e in searched] == [
+        "https://www.gpw.pl/a",
+        "https://www.gpw.pl/b",
+        "https://www.reddit.com/r/x",
+        "https://stooq.pl",
+    ]
+
+
+def test_source_entry_extracts_hostname_from_url_when_missing():
+    entry = wig20._source_entry({"url": "https://www.Gpw.pl/path", "title": "t"})
+    assert entry["hostname"] == "gpw.pl"
+    assert entry["url"] == "https://www.Gpw.pl/path"
+
+
+def test_dedupe_by_hostname_keeps_first_per_hostname():
+    entries = [
+        {"url": "https://a.com/1", "hostname": "a.com"},
+        {"url": "https://a.com/2", "hostname": "a.com"},
+        {"url": "https://b.com/1", "hostname": "b.com"},
+    ]
+    result = wig20._dedupe_by_hostname(entries)
+    assert [e["url"] for e in result] == ["https://a.com/1", "https://b.com/1"]
+
+
+def test_filter_noise_drops_denylisted_hostnames():
+    entries = [
+        {"url": "https://gpw.pl", "hostname": "gpw.pl"},
+        {"url": "https://reddit.com/r/x", "hostname": "reddit.com"},
+    ]
+    result = wig20._filter_noise(entries, {"reddit.com"})
+    assert [e["url"] for e in result] == ["https://gpw.pl"]

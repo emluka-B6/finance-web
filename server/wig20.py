@@ -34,6 +34,7 @@ import time
 from datetime import datetime, timedelta
 
 import requests
+from urllib.parse import urlparse
 
 # --- Fallback (last known) WIG20 constituents --------------------------------
 DEFAULT_WIG20_TICKERS = [
@@ -58,6 +59,40 @@ DIAGNOSTICS_LOG_FILE = os.environ.get("WIG20_DIAGNOSTICS_LOG", "cache/wig20_diag
 
 _refresh_lock = threading.Lock()
 
+# Domains the web-search tool routinely returns that are not authoritative for
+# WIG20 constituents (social media, forums, blogspam, unrelated PDFs, mirrors,
+# and near-duplicate technical-analysis pages). Filtered out of the stored
+# "visited URLs" list so diagnostics stay readable. This is intentionally
+# conservative and only drops clear noise - it never removes the "cited" set.
+_URL_DENYLIST = {
+    "reddit.com",
+    "linkedin.com",
+    "substack.com",
+    "researchgate.net",
+    "opensanctions.org",
+    "eticanews.it",
+    "cne.cl",
+    "muslimxchange.com",
+    "ayondo.com",
+    "naga.com",
+    "stockinvest.us",
+    "buysidedigest.com",
+    "compoundwithrene.com",
+    "robertditrych.substack.com",
+    "koomberg.pl",
+    "prudo.pl",
+    "fin-reports.pl",
+    "stocktoria.com",
+    "topforeignstocks.com",
+    "databahn.com",
+    "marketgenius.app",
+    "modivoplatform.com",
+    "freenance.io",
+    "rt.http3.lol",
+    "dspace.cuni.cz",
+    "bip.uek.krakow.pl",
+}
+
 
 class Wig20Diagnostics:
     """Collects status/diagnostics from a single WIG20 lookup.
@@ -70,7 +105,8 @@ class Wig20Diagnostics:
     def __init__(self, model):
         self.model = model
         self.source = None           # "web_search" | "chat"
-        self.visited_urls = []
+        self.visited_urls = []       # filtered/deduped search sources (see below)
+        self.cited_urls = []         # URLs actually cited in the final answer
         self.json_ok = None          # None (no LLM call) / True / False
         self.json_error = None
         self.raw_tickers = []
@@ -91,6 +127,7 @@ class Wig20Diagnostics:
             "model": self.model,
             "source": self.source,
             "visited_urls": list(self.visited_urls),
+            "cited_urls": list(self.cited_urls),
             "json_ok": self.json_ok,
             "json_error": self.json_error,
             "raw_count": len(self.raw_tickers),
@@ -105,9 +142,16 @@ class Wig20Diagnostics:
     def summarize(self, with_details=False):
         lines = [f"[wig20] diagnostics: model={self.model} source={self.source}"]
 
+        lines.append(
+            f"  urls: visited={len(self.visited_urls)} cited={len(self.cited_urls)}"
+        )
         if self.visited_urls and with_details:
             lines.append("  visited URLs:")
             for u in self.visited_urls:
+                lines.append(f"    - {u}")
+        if self.cited_urls and with_details:
+            lines.append("  cited URLs:")
+            for u in self.cited_urls:
                 lines.append(f"    - {u}")
         
         lines.append(
@@ -294,32 +338,71 @@ def _query_chat(prompt):
 
 
 def _extract_urls(data):
-    """Collect visited/cited URLs from an OpenAI Responses API result."""
-    urls = []
+    """Collect URLs from an OpenAI Responses API result.
+
+    Returns a tuple ``(cited, searched)`` of URL entry dicts::
+
+        {"url": str, "title": str, "hostname": str}
+
+    ``cited`` are the URLs actually cited in the assistant's final answer
+    (message ``url_citation`` annotations) - the subset the model considered
+    useful. ``searched`` are every source the web-search tool retrieved
+    (``web_search_call.action.sources``) - the raw crawl list, which is far
+    larger and mostly noise.
+    """
+    searched = []
     for item in data.get("output", []) or []:
         if not isinstance(item, dict):
             continue
         if item.get("type") == "web_search_call":
             for src in (item.get("action") or {}).get("sources", []) or []:
                 if isinstance(src, dict) and src.get("url"):
-                    urls.append(src["url"])
-        elif item.get("type") == "message":
+                    searched.append(_source_entry(src))
+
+    cited = []
+    for item in data.get("output", []) or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") == "message":
             for block in item.get("content", []) or []:
                 if not isinstance(block, dict):
                     continue
                 for ann in block.get("annotations", []) or []:
                     if isinstance(ann, dict) and ann.get("url"):
-                        urls.append(ann["url"])
+                        cited.append(_source_entry(ann))
+
+    return cited, searched
+
+
+def _source_entry(src):
+    """Normalize a web-search source/annotation dict into a URL entry."""
+    url = src.get("url") or ""
+    hostname = (src.get("hostname") or "").lower().lstrip("www.")
+    if not hostname:
+        hostname = urlparse(url).netloc.lower().lstrip("www.")
+    return {"url": url, "title": src.get("title") or "", "hostname": hostname}
+
+
+def _dedupe_by_hostname(entries):
+    """Collapse URL entries to one per hostname, keeping the first occurrence."""
     seen, result = set(), []
-    for u in urls:
-        if u not in seen:
-            seen.add(u)
-            result.append(u)
+    for e in entries:
+        hostname = e.get("hostname")
+        if hostname and hostname in seen:
+            continue
+        if hostname:
+            seen.add(hostname)
+        result.append(e)
     return result
 
 
+def _filter_noise(entries, denylist):
+    """Drop entries whose hostname is on the denylist."""
+    return [e for e in entries if e.get("hostname") not in denylist]
+
+
 def _query_with_web_search(prompt):
-    """OpenAI Responses API with the web search tool. Returns (content, urls)."""
+    """OpenAI Responses API with the web search tool. Returns (content, cited, searched)."""
     if "openai.com" not in LLM_BASE_URL:
         raise RuntimeError("Web search is only supported with the OpenAI endpoint.")
     url = f"{LLM_BASE_URL.rstrip('/')}/responses"
@@ -343,9 +426,9 @@ def _query_with_web_search(prompt):
     if not resp.ok:
         raise RuntimeError(_http_error(resp))
     data = resp.json()
-    urls = _extract_urls(data)
+    cited, searched = _extract_urls(data)
     content = _extract_response_text(data)
-    return content, urls
+    return content, cited, searched
 
 
 def _extract_response_text(data):
@@ -371,7 +454,11 @@ def query_wig20_via_llm(diag):
     content = None
     if LLM_USE_WEB_SEARCH:
         try:
-            content, diag.visited_urls = _query_with_web_search(_PROMPT)
+            content, cited, searched = _query_with_web_search(_PROMPT)
+            diag.cited_urls = [e["url"] for e in cited]
+            diag.visited_urls = [
+                e["url"] for e in _filter_noise(_dedupe_by_hostname(searched), _URL_DENYLIST)
+            ]
             diag.source = "web_search"
         except Exception as e:
             diag.add_warning(f"web search failed ({e}); falling back to plain LLM")
