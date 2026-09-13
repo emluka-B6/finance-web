@@ -25,6 +25,21 @@ def test_parse_tickers_invalid_raises():
         wig20._parse_tickers("no array here")
 
 
+def test_parse_tickers_empty_raises_descriptive():
+    with pytest.raises(ValueError, match="empty response"):
+        wig20._parse_tickers("")
+
+
+def test_parse_tickers_whitespace_raises_descriptive():
+    with pytest.raises(ValueError, match="empty response"):
+        wig20._parse_tickers("   \n  ")
+
+
+def test_parse_tickers_prose_without_array_raises_descriptive():
+    with pytest.raises(ValueError, match="no JSON array"):
+        wig20._parse_tickers("here is some prose with no array")
+
+
 def test_get_wig20_tickers_uses_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(wig20, "WIG20_CACHE_FILE", str(tmp_path / "cache.json"))
     tickers = ["AAA.WA", "BBB.WA"]
@@ -139,3 +154,13 @@ def test_filter_noise_drops_denylisted_hostnames():
     ]
     result = wig20._filter_noise(entries, {"reddit.com"})
     assert [e["url"] for e in result] == ["https://gpw.pl"]
+
+
+def test_diagnostics_to_dict_includes_requested_at():
+    diag = wig20.Wig20Diagnostics(model="gpt-test")
+    d = diag.to_dict()
+    assert "requested_at" in d
+    # ISO-8601 timestamp parses back to a datetime.
+    from datetime import datetime
+    parsed = datetime.fromisoformat(d["requested_at"])
+    assert parsed <= datetime.now()

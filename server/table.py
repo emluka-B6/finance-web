@@ -4,6 +4,7 @@ from functools import lru_cache
 
 import json
 import os
+import re
 import time
 from datetime import datetime
 from flask import Blueprint, render_template
@@ -30,6 +31,22 @@ def _load_company_names():
         return {}
 
 
+def _normalize_company_name(name):
+    """Normalize Polish legal-form suffixes to "S.A.".
+
+    Yahoo Finance returns the corporate form inconsistently for Polish WIG
+    companies, e.g. "Spólka Akcyjna" or "SA" instead of the conventional
+    "S.A.". Normalize those endings so names render uniformly.
+    """
+    if not name:
+        return name
+    # Full legal phrase first (allow both "Spólka" and "Spółka" spellings).
+    name = re.sub(r"\s*Sp[óo]lka Akcyjna\s*$", " S.A.", name)
+    # Standalone trailing "SA" (word-boundary guarded so e.g. "SANOK" is kept).
+    name = re.sub(r"\bSA\s*$", "S.A.", name)
+    return name
+
+
 def _save_company_names(cache):
     try:
         os.makedirs(os.path.dirname(COMPANY_NAMES_CACHE_FILE) or ".", exist_ok=True)
@@ -50,12 +67,13 @@ def get_company_info(ticker):
     cache = _load_company_names()
     entry = cache.get(ticker)
     if entry and (time.time() - float(entry.get("updated_at", 0) or 0)) < COMPANY_NAMES_TTL:
-        return entry.get("short", ticker), entry.get("long", ticker)
+        return entry.get("short", ticker), _normalize_company_name(entry.get("long", ticker))
 
     try:
         info = yf.Ticker(ticker).info
         short = info.get("shortName") or ticker
         long = info.get("longName") or short
+        long = _normalize_company_name(long)
     except Exception:
         # Don't cache failures so a transient error can be retried later.
         return ticker, ticker

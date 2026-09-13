@@ -104,6 +104,7 @@ class Wig20Diagnostics:
 
     def __init__(self, model):
         self.model = model
+        self.requested_at = datetime.now()  # when this lookup started
         self.source = None           # "web_search" | "chat"
         self.visited_urls = []       # filtered/deduped search sources (see below)
         self.cited_urls = []         # URLs actually cited in the final answer
@@ -124,6 +125,7 @@ class Wig20Diagnostics:
 
     def to_dict(self):
         return {
+            "requested_at": self.requested_at.isoformat(timespec="seconds"),
             "model": self.model,
             "source": self.source,
             "visited_urls": list(self.visited_urls),
@@ -140,7 +142,10 @@ class Wig20Diagnostics:
         }
 
     def summarize(self, with_details=False):
-        lines = [f"[wig20] diagnostics: model={self.model} source={self.source}"]
+        lines = [
+            f"[wig20] diagnostics: model={self.model} source={self.source} "
+            f"requested_at={self.requested_at.isoformat(timespec='seconds')}"
+        ]
 
         lines.append(
             f"  urls: visited={len(self.visited_urls)} cited={len(self.cited_urls)}"
@@ -214,8 +219,15 @@ def _parse_tickers(content):
 
     # If the model wrapped the array in prose, extract the first JSON array.
     match = re.search(r"\[.*\]", content, re.DOTALL)
-    if match:
-        content = match.group(0)
+    if not match:
+        if not content:
+            raise ValueError(
+                "LLM returned an empty response (no content to parse as JSON)"
+            )
+        raise ValueError(
+            f"LLM response contained no JSON array: {content[:120]!r}"
+        )
+    content = match.group(0)
 
     tickers = json.loads(content)
     if not isinstance(tickers, list) or not tickers:
