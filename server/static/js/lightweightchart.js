@@ -93,6 +93,11 @@ function initLightweightChart() {
     if (series) chart.removeSeries(series);
     if (type === "line") {
       series = chart.addLineSeries({ color: colors.lineColor, lineWidth: colors.lineWidth });
+    } else if (type === "ohlc") {
+      series = chart.addBarSeries({
+        upColor: colors.upColor, downColor: colors.downColor,
+        thinBars: false,
+      });
     } else {
       series = chart.addCandlestickSeries({
         upColor: colors.upColor, downColor: colors.downColor,
