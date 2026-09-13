@@ -59,6 +59,11 @@ DIAGNOSTICS_LOG_FILE = os.environ.get("WIG20_DIAGNOSTICS_LOG", "cache/wig20_diag
 
 _refresh_lock = threading.Lock()
 
+# Guards against starting more than one scheduler thread per process (e.g. if
+# start_wig20_scheduler() is invoked more than once during startup).
+_scheduler_thread = None
+_scheduler_start_lock = threading.Lock()
+
 # Domains the web-search tool routinely returns that are not authoritative for
 # WIG20 constituents (social media, forums, blogspam, unrelated PDFs, mirrors,
 # and near-duplicate technical-analysis pages). Filtered out of the stored
@@ -584,6 +589,7 @@ def _seconds_until_next_midnight():
 
 
 def start_wig20_scheduler():
+    global _scheduler_thread
     """
     Start a daemon thread that refreshes WIG20 constituents daily at midnight.
 
@@ -615,6 +621,11 @@ def start_wig20_scheduler():
             except Exception as e:
                 print(f"[wig20] scheduled refresh failed: {e}")
 
-    thread = threading.Thread(target=_run, daemon=True, name="wig20-scheduler")
-    thread.start()
-    return thread
+    with _scheduler_start_lock:
+        if _scheduler_thread is not None and _scheduler_thread.is_alive():
+            print("[wig20] scheduler thread already running; skipping duplicate start")
+            return _scheduler_thread
+        thread = threading.Thread(target=_run, daemon=True, name="wig20-scheduler")
+        _scheduler_thread = thread
+        thread.start()
+        return thread

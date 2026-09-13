@@ -120,10 +120,25 @@ if __name__ == '__main__':
             db.metadata.create_all(bind=session_engine)
             clean_old_logs(30)
 
-    # Start the WIG20 scheduler only in the real server process (not the debug
-    # reloader's parent process, which would otherwise start a duplicate thread).
+    # We want exactly ONE WIG20 scheduler thread, but Flask's debug (debug=True) 
+    # reloader runs this whole file in two processes:
+    #
+    #   1. The "parent" process: the first invocation. It calls
+    #      app.run(debug=debug) below, which starts the reloader that then
+    #      spawns process 2. This parent only watches for file changes and
+    #      never serves requests.
+    #   2. The "child" process: spawned by the reloader with the environment
+    #      variable WERKZEUG_RUN_MAIN set to "true". This is the process that
+    #      actually serves your app.
+    #
+    # Because both processes execute this __main__ block, we must start the
+    # scheduler in only one of them, otherwise you get two threads
+    #
+    # That second condition exists only for the "debug off / no reloader"
+    debug = True       # Change to False for production
+    app.debug = debug
     if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
         print("Starting WIG20 scheduler")
         start_wig20_scheduler()
 
-    app.run(debug=True)
+    app.run(debug=debug)
