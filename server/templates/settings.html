@@ -27,8 +27,58 @@
                     <label class="form-check-label" for="lightweight">Lightweight Charts</label>
                 </div>
             </fieldset>
+
+            <fieldset>
+                <legend class="fs-5 mb-3">LLM settings</legend>
+                <p class="text-muted">Used to look up the current WIG20 constituents. These settings override the <code>LLM_PROVIDER</code>, <code>LLM_MODEL</code>, and <code>LLM_API_KEY</code> environment variables for this server.</p>
+
+                <div class="mb-3">
+                    <label class="form-label" for="llm_provider">LLM provider</label>
+                    <select class="form-select" id="llm_provider" name="llm_provider">
+                        {% for key, provider in llm_providers.items() %}
+                            <option value="{{ key }}" {% if key == llm_provider %}selected{% endif %}>{{ provider.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="llm_model">Model name</label>
+                    <select class="form-select" id="llm_model" name="llm_model">
+                        {% for model in llm_models %}
+                            <option value="{{ model }}" {% if model == llm_model %}selected{% endif %}>{{ model }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label" for="llm_api_key">LLM API key</label>
+                    <input type="password" class="form-control" id="llm_api_key" name="llm_api_key"
+                           placeholder="Leave blank to keep the current key" autocomplete="off">
+                </div>
+            </fieldset>
+
             <button type="submit" class="btn btn-primary">Save settings</button>
         </form>
     </div>
 </div>
+
+<script>
+    const PROVIDERS = {{ llm_providers | tojson }};
+
+    function populateModels(providerKey) {
+        const select = document.getElementById('llm_model');
+        const models = PROVIDERS[providerKey].models;
+        select.innerHTML = '';
+        models.forEach(function (model) {
+            const option = document.createElement('option');
+            option.value = model;
+            option.textContent = model;
+            select.appendChild(option);
+        });
+    }
+
+    document.getElementById('llm_provider').addEventListener('change', function (event) {
+        populateModels(event.target.value);
+    });
+</script>
 {% endblock %}

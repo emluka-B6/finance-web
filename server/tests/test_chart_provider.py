@@ -12,7 +12,11 @@ def test_settings_save_selected_provider_and_chart_uses_it(client):
     client.post("/register", data={"name": "alice", "email": "alice@gmail.com", "password": "pass123"})
     client.post("/login", data={"email": "alice@gmail.com", "password": "pass123"})
 
-    response = client.post("/settings", data={"chart_provider": "lightweight"})
+    response = client.post("/settings", data={
+        "chart_provider": "lightweight",
+        "llm_provider": "openai",
+        "llm_model": "gpt-4o",
+    })
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/settings")
 

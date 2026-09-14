@@ -6,16 +6,15 @@ API), caches the result on disk, and refreshes it on a daily schedule. If the
 LLM or the network is unavailable, it falls back to a hardcoded last-known
 list so the table always renders something.
 
-Configuration is driven by environment variables so the provider can be
-switched without code changes:
+Configuration is driven by environment variables (used as defaults) and can be
+overridden at runtime from the Settings page (in-memory, per-process):
 
     LLM_API_KEY   API key (required for the LLM lookup).
-    LLM_BASE_URL  OpenAI-compatible base URL. Defaults to OpenAI.
-                  - OpenAI:  https://api.openai.com/v1
-                  - DeepSeek: https://api.deepseek.com/v1
-                  - Qwen:    https://dashscope.aliyuncs.com/compatible-mode/v1
-    LLM_MODEL     Model name. Defaults to "gpt-4o-mini".
-                  - DeepSeek: "deepseek-chat", Qwen: "qwen-plus".
+    LLM_PROVIDER  Provider key selecting the OpenAI-compatible base URL.
+                  - openai:   https://api.openai.com/v1
+                  - deepseek: https://api.deepseek.com/v1
+                  - zai:      https://api.z.ai/api/paas/v4
+    LLM_MODEL     Model name. Defaults to the first model of the provider.
     LLM_USE_WEB_SEARCH  "1"/"true" to ground the lookup in live web results
                   via the OpenAI Responses API web search tool. Defaults to
                   enabled; it only applies to the OpenAI endpoint and falls
@@ -46,9 +45,86 @@ DEFAULT_WIG20_TICKERS = [
 
 # --- Configuration (overridable via environment variables) ------------------
 LLM_API_KEY = os.environ.get("LLM_API_KEY", os.environ.get("OPENAI_API_KEY", ""))
-LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")
-LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+
+# LLM providers offered in the Settings page. Each is OpenAI-compatible and
+# pins the base URL to the selected provider, so picking a provider in the UI
+# automatically selects the right endpoint.
+LLM_PROVIDERS = {
+    "openai": {
+        "label": "OpenAI",
+        "base_url": "https://api.openai.com/v1",
+        "models": [ "gpt-4o", "gpt-5-mini", "gpt-5", "gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4"],
+    },
+    "deepseek": {
+        "label": "DeepSeek",
+        "base_url": "https://api.deepseek.com",
+        "models": ["deepseek-flash", "deepseek-v4-pro"],
+    },
+    "zai": {
+        "label": "Z.ai",
+        "base_url": "https://api.z.ai/api/paas/v4",
+        "models": ["glm-4.7-plus", "glm-5", "glm-5.1", "glm-5.2", "glm-5.3-flash", "glm-5.3"],
+    },
+}
+
+# Environment defaults, used until the Settings page overrides them.
+_ENV_PROVIDER = os.environ.get("LLM_PROVIDER", "DeepSeek")
+_ENV_MODEL = os.environ.get("LLM_MODEL", "deepseek-flash")
+
+# Runtime overrides set via the Settings page (in-memory "python variables").
+# When None, the environment defaults above are used.
+_selected_provider = None
+_selected_model = None
+_selected_api_key = None
+
 LLM_USE_WEB_SEARCH = os.environ.get("LLM_USE_WEB_SEARCH", "1").lower() in ("1", "true", "yes")
+
+
+def get_llm_provider():
+    """Return the selected LLM provider key (runtime override or env default)."""
+    return _selected_provider or _ENV_PROVIDER
+
+
+def get_llm_model():
+    """Return the selected model (runtime override, env default, or provider default)."""
+    if _selected_model:
+        return _selected_model
+    if _ENV_MODEL:
+        return _ENV_MODEL
+    return LLM_PROVIDERS[get_llm_provider()]["models"][0]
+
+
+def get_llm_base_url():
+    """Return the OpenAI-compatible base URL for the selected provider."""
+    return LLM_PROVIDERS[get_llm_provider()]["base_url"]
+
+
+def set_llm_settings(provider, model):
+    """Override the LLM provider/model selected in the Settings page.
+
+    Raises ``ValueError`` for an unknown provider or a model not offered by it.
+    """
+    global _selected_provider, _selected_model
+    if provider not in LLM_PROVIDERS:
+        raise ValueError(f"Unknown LLM provider: {provider!r}")
+    if model not in LLM_PROVIDERS[provider]["models"]:
+        raise ValueError(f"Unknown model {model!r} for provider {provider!r}")
+    _selected_provider = provider
+    _selected_model = model
+
+
+def get_llm_api_key():
+    """Return the API key (runtime override, or the environment default)."""
+    return _selected_api_key or LLM_API_KEY
+
+
+def set_llm_api_key(api_key):
+    """Override the LLM API key selected in the Settings page.
+
+    An empty/blank value clears the override, falling back to ``LLM_API_KEY``.
+    """
+    global _selected_api_key
+    _selected_api_key = (api_key or "").strip() or None
 # When enabled, the scheduler performs an immediate warm-up refresh on startup.
 # Disabled by default so a server restart (common during development) does not
 # trigger an LLM call; set it to "1"/"true" when iterating on this area. Even
@@ -335,15 +411,15 @@ def _http_error(resp):
 
 def _query_chat(prompt):
     """Plain chat-completions call (no web search)."""
-    url = f"{LLM_BASE_URL.rstrip('/')}/chat/completions"
+    url = f"{get_llm_base_url().rstrip('/')}/chat/completions"
     resp = requests.post(
         url,
         headers={
-            "Authorization": f"Bearer {LLM_API_KEY}",
+            "Authorization": f"Bearer {get_llm_api_key()}",
             "Content-Type": "application/json",
         },
         json={
-            "model": LLM_MODEL,
+            "model": get_llm_model(),
             "messages": [{"role": "user", "content": prompt}],
         },
         timeout=30,
@@ -420,17 +496,17 @@ def _filter_noise(entries, denylist):
 
 def _query_with_web_search(prompt):
     """OpenAI Responses API with the web search tool. Returns (content, cited, searched)."""
-    if "openai.com" not in LLM_BASE_URL:
+    if "openai.com" not in get_llm_base_url():
         raise RuntimeError("Web search is only supported with the OpenAI endpoint.")
-    url = f"{LLM_BASE_URL.rstrip('/')}/responses"
+    url = f"{get_llm_base_url().rstrip('/')}/responses"
     resp = requests.post(
         url,
         headers={
-            "Authorization": f"Bearer {LLM_API_KEY}",
+            "Authorization": f"Bearer {get_llm_api_key()}",
             "Content-Type": "application/json",
         },
         json={
-            "model": LLM_MODEL,
+            "model": get_llm_model(),
             "input": prompt,
             "tools": [{"type": "web_search"}],            
             "tool_choice": {"type": "web_search"},
@@ -464,7 +540,7 @@ def _extract_response_text(data):
 
 def query_wig20_via_llm(diag):
     """Populate `diag` and return the raw ticker list. Raises on hard failure."""
-    if not LLM_API_KEY:
+    if not get_llm_api_key():
         diag.add_error("No LLM API key configured")
         raise RuntimeError("No LLM API key configured (set LLM_API_KEY).")
 
@@ -532,7 +608,7 @@ def _analyze_raw_tickers(raw, diag):
 
 def refresh_wig20_tickers():
     """Re-query the LLM, analyze/normalize the result, and update the cache."""
-    diag = Wig20Diagnostics(model=LLM_MODEL)
+    diag = Wig20Diagnostics(model=get_llm_model())
     try:
         raw = query_wig20_via_llm(diag)
     except Exception:

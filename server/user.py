@@ -5,6 +5,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 
 from misc.extensions import ALREADY_ADDED, DB_ERROR, db
 from misc.alchemy_db import AlchemyDb, Role
+from .wig20 import LLM_PROVIDERS, get_llm_provider, get_llm_model, set_llm_settings, set_llm_api_key
 
 # refering to url from different module is url_for("user.add")
 user_bp = Blueprint("user", __name__)
@@ -141,12 +142,31 @@ def settings():
             flash('Please select a valid chart provider.', 'error')
             return redirect(url_for('user.settings'))
 
+        llm_provider = request.form.get('llm_provider')
+        llm_model = request.form.get('llm_model')
+        try:
+            set_llm_settings(llm_provider, llm_model)
+        except ValueError as e:
+            flash(str(e), 'error')
+            return redirect(url_for('user.settings'))
+
+        llm_api_key = request.form.get('llm_api_key', '')
+        if llm_api_key.strip():
+            set_llm_api_key(llm_api_key)
+
         current_user.chart_provider = chart_provider
         db.session.commit()
         flash('Settings saved successfully.', 'success')
         return redirect(url_for('user.settings'))
 
-    return render_template('settings.html')
+    llm_provider = get_llm_provider()
+    return render_template(
+        'settings.html',
+        llm_providers=LLM_PROVIDERS,
+        llm_provider=llm_provider,
+        llm_model=get_llm_model(),
+        llm_models=LLM_PROVIDERS[llm_provider]["models"],
+    )
 
 
 @user_bp.route('/', methods=['GET', 'POST'])
