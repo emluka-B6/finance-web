@@ -4,6 +4,7 @@ import time
 import pytest
 
 import server.wig20 as wig20
+import server.llm as llm
 
 
 def test_parse_tickers_plain():
@@ -121,7 +122,7 @@ def _responses_payload():
 
 
 def test_extract_urls_splits_cited_and_searched():
-    cited, searched = wig20._extract_urls(_responses_payload())
+    cited, searched = llm._extract_urls(_responses_payload())
     assert [e["url"] for e in cited] == ["https://www.gpw.pl/a"]
     assert [e["url"] for e in searched] == [
         "https://www.gpw.pl/a",
@@ -132,7 +133,7 @@ def test_extract_urls_splits_cited_and_searched():
 
 
 def test_source_entry_extracts_hostname_from_url_when_missing():
-    entry = wig20._source_entry({"url": "https://www.Gpw.pl/path", "title": "t"})
+    entry = llm._source_entry({"url": "https://www.Gpw.pl/path", "title": "t"})
     assert entry["hostname"] == "gpw.pl"
     assert entry["url"] == "https://www.Gpw.pl/path"
 
@@ -143,7 +144,7 @@ def test_dedupe_by_hostname_keeps_first_per_hostname():
         {"url": "https://a.com/2", "hostname": "a.com"},
         {"url": "https://b.com/1", "hostname": "b.com"},
     ]
-    result = wig20._dedupe_by_hostname(entries)
+    result = llm._dedupe_by_hostname(entries)
     assert [e["url"] for e in result] == ["https://a.com/1", "https://b.com/1"]
 
 
@@ -152,8 +153,20 @@ def test_filter_noise_drops_denylisted_hostnames():
         {"url": "https://gpw.pl", "hostname": "gpw.pl"},
         {"url": "https://reddit.com/r/x", "hostname": "reddit.com"},
     ]
-    result = wig20._filter_noise(entries, {"reddit.com"})
+    result = llm._filter_noise(entries, {"reddit.com"})
     assert [e["url"] for e in result] == ["https://gpw.pl"]
+
+
+def test_diff_tickers_reports_added_and_removed():
+    added, removed = wig20._diff_tickers(["A.WA", "B.WA", "C.WA"], ["B.WA", "C.WA", "D.WA"])
+    assert added == ["D.WA"]
+    assert removed == ["A.WA"]
+
+
+def test_diff_tickers_no_change():
+    added, removed = wig20._diff_tickers(["A.WA", "B.WA"], ["B.WA", "A.WA"])
+    assert added == []
+    assert removed == []
 
 
 def test_diagnostics_to_dict_includes_requested_at():

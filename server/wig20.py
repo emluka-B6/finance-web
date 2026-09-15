@@ -1,24 +1,17 @@
 """
 WIG20 index constituents management.
 
-Queries the current list of WIG20 companies from an LLM (OpenAI-compatible
-API), caches the result on disk, and refreshes it on a daily schedule. If the
-LLM or the network is unavailable, it falls back to a hardcoded last-known
-list so the table always renders something.
+Queries the current list of WIG20 companies from an LLM (see ``llm.py``),
+caches the result on disk, and refreshes it on a daily schedule. If the LLM or
+the network is unavailable, it falls back to a hardcoded last-known list so
+the table always renders something.
 
-Configuration is driven by environment variables (used as defaults) and can be
-overridden at runtime from the Settings page (in-memory, per-process):
+The generic LLM client (providers, models, API key, web search) lives in
+``llm.py`` and is reused by other features; this module keeps only what is
+specific to WIG20 tickers plus the daily refresh scheduler.
 
-    LLM_API_KEY   API key (required for the LLM lookup).
-    LLM_PROVIDER  Provider key selecting the OpenAI-compatible base URL.
-                  - openai:   https://api.openai.com/v1
-                  - deepseek: https://api.deepseek.com/v1
-                  - zai:      https://api.z.ai/api/paas/v4
-    LLM_MODEL     Model name. Defaults to the first model of the provider.
-    LLM_USE_WEB_SEARCH  "1"/"true" to ground the lookup in live web results
-                  via the OpenAI Responses API web search tool. Defaults to
-                  enabled; it only applies to the OpenAI endpoint and falls
-                  back to a plain chat call otherwise.
+Configuration (WIG20-specific):
+
     WIG20_REFRESH_ON_START  "1"/"true" to perform an immediate warm-up refresh
                   when the scheduler starts. The scheduler also refreshes on
                   start if the cache is missing or stale (last refreshed on an
@@ -32,8 +25,15 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-import requests
-from urllib.parse import urlparse
+from .llm import (
+    LLM_USE_WEB_SEARCH,
+    get_llm_api_key,
+    get_llm_model,
+    _query_chat,
+    _query_with_web_search,
+    _dedupe_by_hostname,
+    _filter_noise,
+)
 
 # --- Fallback (last known) WIG20 constituents --------------------------------
 DEFAULT_WIG20_TICKERS = [
@@ -43,88 +43,6 @@ DEFAULT_WIG20_TICKERS = [
     'KTY.WA', 'KRU.WA', 'PCO.WA', 'OPL.WA', 'BDX.WA',
 ]
 
-# --- Configuration (overridable via environment variables) ------------------
-LLM_API_KEY = os.environ.get("LLM_API_KEY", os.environ.get("OPENAI_API_KEY", ""))
-
-# LLM providers offered in the Settings page. Each is OpenAI-compatible and
-# pins the base URL to the selected provider, so picking a provider in the UI
-# automatically selects the right endpoint.
-LLM_PROVIDERS = {
-    "openai": {
-        "label": "OpenAI",
-        "base_url": "https://api.openai.com/v1",
-        "models": [ "gpt-4o", "gpt-5-mini", "gpt-5", "gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4"],
-    },
-    "deepseek": {
-        "label": "DeepSeek",
-        "base_url": "https://api.deepseek.com",
-        "models": ["deepseek-flash", "deepseek-v4-pro"],
-    },
-    "zai": {
-        "label": "Z.ai",
-        "base_url": "https://api.z.ai/api/paas/v4",
-        "models": ["glm-4.7-plus", "glm-5", "glm-5.1", "glm-5.2", "glm-5.3-flash", "glm-5.3"],
-    },
-}
-
-# Environment defaults, used until the Settings page overrides them.
-_ENV_PROVIDER = os.environ.get("LLM_PROVIDER", "DeepSeek")
-_ENV_MODEL = os.environ.get("LLM_MODEL", "deepseek-flash")
-
-# Runtime overrides set via the Settings page (in-memory "python variables").
-# When None, the environment defaults above are used.
-_selected_provider = None
-_selected_model = None
-_selected_api_key = None
-
-LLM_USE_WEB_SEARCH = os.environ.get("LLM_USE_WEB_SEARCH", "1").lower() in ("1", "true", "yes")
-
-
-def get_llm_provider():
-    """Return the selected LLM provider key (runtime override or env default)."""
-    return _selected_provider or _ENV_PROVIDER
-
-
-def get_llm_model():
-    """Return the selected model (runtime override, env default, or provider default)."""
-    if _selected_model:
-        return _selected_model
-    if _ENV_MODEL:
-        return _ENV_MODEL
-    return LLM_PROVIDERS[get_llm_provider()]["models"][0]
-
-
-def get_llm_base_url():
-    """Return the OpenAI-compatible base URL for the selected provider."""
-    return LLM_PROVIDERS[get_llm_provider()]["base_url"]
-
-
-def set_llm_settings(provider, model):
-    """Override the LLM provider/model selected in the Settings page.
-
-    Raises ``ValueError`` for an unknown provider or a model not offered by it.
-    """
-    global _selected_provider, _selected_model
-    if provider not in LLM_PROVIDERS:
-        raise ValueError(f"Unknown LLM provider: {provider!r}")
-    if model not in LLM_PROVIDERS[provider]["models"]:
-        raise ValueError(f"Unknown model {model!r} for provider {provider!r}")
-    _selected_provider = provider
-    _selected_model = model
-
-
-def get_llm_api_key():
-    """Return the API key (runtime override, or the environment default)."""
-    return _selected_api_key or LLM_API_KEY
-
-
-def set_llm_api_key(api_key):
-    """Override the LLM API key selected in the Settings page.
-
-    An empty/blank value clears the override, falling back to ``LLM_API_KEY``.
-    """
-    global _selected_api_key
-    _selected_api_key = (api_key or "").strip() or None
 # When enabled, the scheduler performs an immediate warm-up refresh on startup.
 # Disabled by default so a server restart (common during development) does not
 # trigger an LLM call; set it to "1"/"true" when iterating on this area. Even
@@ -394,150 +312,6 @@ _PROMPT = (
 )
 
 
-def _http_error(resp):
-    """Build a descriptive error string including the response body.
-
-    OpenAI-compatible APIs return a JSON body with an "error" object that
-    explains why a request failed (e.g. unsupported model, bad parameter),
-    which `requests`' HTTPError message omits. Including it makes 400-class
-    errors diagnosable instead of a bare "Bad Request".
-    """
-    try:
-        body = resp.text
-    except Exception:
-        body = "<no response body>"
-    return f"{resp.status_code} {resp.reason} for {resp.url}\nResponse body: {body}"
-
-
-def _query_chat(prompt):
-    """Plain chat-completions call (no web search)."""
-    url = f"{get_llm_base_url().rstrip('/')}/chat/completions"
-    resp = requests.post(
-        url,
-        headers={
-            "Authorization": f"Bearer {get_llm_api_key()}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": get_llm_model(),
-            "messages": [{"role": "user", "content": prompt}],
-        },
-        timeout=30,
-    )
-    if not resp.ok:
-        raise RuntimeError(_http_error(resp))
-    content = resp.json()["choices"][0]["message"]["content"]
-    return content
-
-
-def _extract_urls(data):
-    """Collect URLs from an OpenAI Responses API result.
-
-    Returns a tuple ``(cited, searched)`` of URL entry dicts::
-
-        {"url": str, "title": str, "hostname": str}
-
-    ``cited`` are the URLs actually cited in the assistant's final answer
-    (message ``url_citation`` annotations) - the subset the model considered
-    useful. ``searched`` are every source the web-search tool retrieved
-    (``web_search_call.action.sources``) - the raw crawl list, which is far
-    larger and mostly noise.
-    """
-    searched = []
-    for item in data.get("output", []) or []:
-        if not isinstance(item, dict):
-            continue
-        if item.get("type") == "web_search_call":
-            for src in (item.get("action") or {}).get("sources", []) or []:
-                if isinstance(src, dict) and src.get("url"):
-                    searched.append(_source_entry(src))
-
-    cited = []
-    for item in data.get("output", []) or []:
-        if not isinstance(item, dict):
-            continue
-        if item.get("type") == "message":
-            for block in item.get("content", []) or []:
-                if not isinstance(block, dict):
-                    continue
-                for ann in block.get("annotations", []) or []:
-                    if isinstance(ann, dict) and ann.get("url"):
-                        cited.append(_source_entry(ann))
-
-    return cited, searched
-
-
-def _source_entry(src):
-    """Normalize a web-search source/annotation dict into a URL entry."""
-    url = src.get("url") or ""
-    hostname = (src.get("hostname") or "").lower().lstrip("www.")
-    if not hostname:
-        hostname = urlparse(url).netloc.lower().lstrip("www.")
-    return {"url": url, "title": src.get("title") or "", "hostname": hostname}
-
-
-def _dedupe_by_hostname(entries):
-    """Collapse URL entries to one per hostname, keeping the first occurrence."""
-    seen, result = set(), []
-    for e in entries:
-        hostname = e.get("hostname")
-        if hostname and hostname in seen:
-            continue
-        if hostname:
-            seen.add(hostname)
-        result.append(e)
-    return result
-
-
-def _filter_noise(entries, denylist):
-    """Drop entries whose hostname is on the denylist."""
-    return [e for e in entries if e.get("hostname") not in denylist]
-
-
-def _query_with_web_search(prompt):
-    """OpenAI Responses API with the web search tool. Returns (content, cited, searched)."""
-    if "openai.com" not in get_llm_base_url():
-        raise RuntimeError("Web search is only supported with the OpenAI endpoint.")
-    url = f"{get_llm_base_url().rstrip('/')}/responses"
-    resp = requests.post(
-        url,
-        headers={
-            "Authorization": f"Bearer {get_llm_api_key()}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": get_llm_model(),
-            "input": prompt,
-            "tools": [{"type": "web_search"}],            
-            "tool_choice": {"type": "web_search"},
-            "include": [
-                "web_search_call.action.sources"
-            ],
-        },
-        timeout=240,
-    )
-    if not resp.ok:
-        raise RuntimeError(_http_error(resp))
-    data = resp.json()
-    cited, searched = _extract_urls(data)
-    content = _extract_response_text(data)
-    return content, cited, searched
-
-
-def _extract_response_text(data):
-    """Extract the assistant's text from an OpenAI Responses API payload."""
-    if "output_text" in data:
-        return data["output_text"]
-
-    parts = []
-    for item in data.get("output", []):
-        if item.get("type") == "message":
-            for c in item.get("content", []):
-                if c.get("type") in ("output_text", "text"):
-                    parts.append(c.get("text", ""))
-    return "".join(parts)
-
-
 def query_wig20_via_llm(diag):
     """Populate `diag` and return the raw ticker list. Raises on hard failure."""
     if not get_llm_api_key():
@@ -545,6 +319,14 @@ def query_wig20_via_llm(diag):
         raise RuntimeError("No LLM API key configured (set LLM_API_KEY).")
 
     content = None
+    # Explicit flag that decides whether the plain chat-completions result
+    # should override (replace) the web-search result. It is True whenever web
+    # search did not produce usable content - i.e. it was disabled, raised, or
+    # returned an empty string. Using a boolean (rather than the ``content is
+    # None`` sentinel) also covers the case where web search "succeeds" but
+    # yields an empty body, which would otherwise skip the fallback and fail
+    # later in ``_parse_tickers``.
+    web_search_ok = False
     if LLM_USE_WEB_SEARCH:
         try:
             content, cited, searched = _query_with_web_search(_PROMPT)
@@ -553,11 +335,13 @@ def query_wig20_via_llm(diag):
                 e["url"] for e in _filter_noise(_dedupe_by_hostname(searched), _URL_DENYLIST)
             ]
             diag.source = "web_search"
+            web_search_ok = bool(content and content.strip())
         except Exception as e:
             diag.add_warning(f"web search failed ({e}); falling back to plain LLM")
 
-    if content is None:
+    if not web_search_ok:
         try:
+            print("[wig20] falling back to plain LLM chat-completions (no web search)")
             content = _query_chat(_PROMPT)
             diag.source = "chat"
         except Exception as e:
@@ -606,17 +390,40 @@ def _analyze_raw_tickers(raw, diag):
     return normalized
 
 
+def _diff_tickers(previous, current):
+    """Return ``(added, removed)`` sorted lists comparing two ticker lists.
+
+    Membership is compared as a set; ordering differences are not reported.
+    """
+    prev_set = set(previous or [])
+    curr_set = set(current or [])
+    return sorted(curr_set - prev_set), sorted(prev_set - curr_set)
+
+
 def refresh_wig20_tickers():
     """Re-query the LLM, analyze/normalize the result, and update the cache."""
     diag = Wig20Diagnostics(model=get_llm_model())
     try:
         raw = query_wig20_via_llm(diag)
-    except Exception:
+    except Exception as e:
+        print(f"[wig20] LLM query failed: {e}")
         _log_diagnostics(diag)
         print(diag.summarize())
         raise
 
     normalized = _analyze_raw_tickers(raw, diag)
+
+    # Report any change vs. the currently served list (cache, or the hardcoded
+    # fallback on first run) so additions/removals are visible in the logs.
+    previous = get_wig20_tickers()
+    added, removed = _diff_tickers(previous, normalized)
+    if added or removed:
+        if added:
+            print(f"[wig20] WIG20 constituents added: {', '.join(added)}")
+        if removed:
+            print(f"[wig20] WIG20 constituents removed: {', '.join(removed)}")
+    else:
+        print("[wig20] WIG20 constituents unchanged")
 
     _save_cache({
         "tickers": normalized,

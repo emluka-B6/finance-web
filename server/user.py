@@ -5,7 +5,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 
 from misc.extensions import ALREADY_ADDED, DB_ERROR, db
 from misc.alchemy_db import AlchemyDb, Role
-from .wig20 import LLM_PROVIDERS, get_llm_provider, get_llm_model, set_llm_settings, set_llm_api_key
+from .llm import LLM_PROVIDERS, get_llm_provider, get_llm_model, set_llm_settings, set_llm_api_key
 
 # refering to url from different module is url_for("user.add")
 user_bp = Blueprint("user", __name__)
