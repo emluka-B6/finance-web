@@ -23,13 +23,11 @@ import os
 import requests
 from urllib.parse import urlparse
 
-LLM_API_KEY = os.environ.get("LLM_API_KEY", os.environ.get("OPENAI_API_KEY", ""))  
 LLM_API_KEY_DICT = {
     "openai": os.environ.get("OPENAI_API_KEY"),
     "deepseek": os.environ.get("DEEPSEEK_API_KEY"),
     "zai": os.environ.get("ZAI_API_KEY")
 }
-
 # LLM providers offered in the Settings page. Each is OpenAI-compatible and
 # pins the base URL to the selected provider, so picking a provider in the UI
 # automatically selects the right endpoint.
@@ -42,7 +40,11 @@ LLM_PROVIDERS = {
     "deepseek": {
         "label": "DeepSeek",
         "base_url": "https://api.deepseek.com",
-        "models": ["deepseek-flash", "deepseek-v4-pro"],
+        # deepseek-chat is the non-reasoning model (fast, cheap) and is the
+        # right default for simple "return a JSON array" lookups. The others
+        # are reasoning models that spend a long time in reasoning_content
+        # before emitting the final answer, so they need a generous timeout.
+        "models": ["deepseek-chat", "deepseek-flash", "deepseek-v4-pro"],
     },
     "zai": {
         "label": "Z.ai",
@@ -52,8 +54,11 @@ LLM_PROVIDERS = {
 }
 
 # Environment defaults, used until the Settings page overrides them.
-_ENV_PROVIDER = os.environ.get("LLM_PROVIDER", "deepseek")
-_ENV_MODEL = os.environ.get("LLM_MODEL", "deepseek-flash")
+# _ENV_PROVIDER = os.environ.get("LLM_PROVIDER", "deepseek")
+# _ENV_MODEL = os.environ.get("LLM_MODEL", "deepseek-chat")
+_ENV_PROVIDER = os.environ.get("LLM_PROVIDER", "zai")
+_ENV_MODEL = os.environ.get("LLM_MODEL", "glm-5")
+LLM_API_KEY = LLM_API_KEY_DICT.get(_ENV_PROVIDER) or os.environ.get("LLM_API_KEY")
 
 # Runtime overrides set via the Settings page (in-memory "python variables").
 # When None, the environment defaults above are used.
@@ -104,12 +109,14 @@ def set_llm_settings(provider, model):
         raise ValueError(f"Unknown model {model!r} for provider {provider!r}")
 
     LLM_API_KEY = get_configured_api_key(provider)
+    print(f"LLM_API_KEY set to: {LLM_API_KEY}")
     _selected_provider = provider
     _selected_model = model
 
 
 def get_llm_api_key():
     """Return the API key (runtime override, or the environment default)."""
+    print(f"Returning LLM_API_KEY: {LLM_API_KEY}")
     return _selected_api_key or LLM_API_KEY
 
 
@@ -152,7 +159,10 @@ def _query_chat(prompt):
             "model": get_llm_model(),
             "messages": [{"role": "user", "content": prompt}],
         },
-        timeout=30,
+        # Reasoning models (e.g. deepseek-flash) can spend minutes in
+        # reasoning_content before returning, so mirror the generous timeout
+        # used by the web-search path rather than the previous 30s.
+        timeout=240,
     )
     if not resp.ok:
         raise RuntimeError(_http_error(resp))
@@ -226,7 +236,12 @@ def _filter_noise(entries, denylist):
 
 def _query_with_web_search(prompt):
     """OpenAI Responses API with the web search tool. Returns (content, cited, searched)."""
-    url = f"{get_llm_base_url().rstrip('/')}/responses"
+    provider = get_llm_provider()
+    if provider != "zai":
+        url = f"{get_llm_base_url().rstrip('/')}/chat/completions"
+    else:
+        url = f"{get_llm_base_url().rstrip('/')}/responses"
+
     print(f"Querying OpenAI Responses API with web search: {url}")
     
     if "openai.com" not in get_llm_base_url():
